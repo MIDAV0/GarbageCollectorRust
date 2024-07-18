@@ -1,0 +1,51 @@
+pub enum ChainName {
+    Ethereum,
+    Arbitrum,
+    Optimism,
+    Base,
+    Linea,
+    Zksync,
+    Bsc,
+    Opbnb,
+    Polygon,
+    Avalanche,
+    Scroll,
+    Blast,
+    Mantle,
+    Gnosis,
+    Fantom,
+    Celo,
+    Core,
+    Manta,
+    Taiko,
+    // | 'Zora',
+    Nova,
+}
+
+impl From<&str> for ChainName {
+    fn from(s: &str) -> Self {
+        match s {
+            "Ethereum" => ChainName::Ethereum,
+            "Arbitrum" => ChainName::Arbitrum,
+            "Optimism" => ChainName::Optimism,
+            "Base" => ChainName::Base,
+            "Linea" => ChainName::Linea,
+            "Zksync" => ChainName::Zksync,
+            "Bsc" => ChainName::Bsc,
+            "Opbnb" => ChainName::Opbnb,
+            "Polygon" => ChainName::Polygon,
+            "Avalanche" => ChainName::Avalanche,
+            "Scroll" => ChainName::Scroll,
+            "Blast" => ChainName::Blast,
+            "Mantle" => ChainName::Mantle,
+            "Gnosis" => ChainName::Gnosis,
+            "Fantom" => ChainName::Fantom,
+            "Celo" => ChainName::Celo,
+            "Core" => ChainName::Core,
+            "Manta" => ChainName::Manta,
+            "Taiko" => ChainName::Taiko,
+            "Nova" => ChainName::Nova,
+            _ => panic!("Invalid chain name"),
+        }
+    }
+}

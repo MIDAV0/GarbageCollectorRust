@@ -17,25 +17,19 @@ sol!(
     "src/utils/contract_abis/ERC20.json"
 );
 
-struct Web3Client {
+pub struct Web3Client {
     provider: MyFiller,
     network_name: ChainName,
-    with_signer: bool,
 }
 
 impl Web3Client {
     pub fn new(
         rpc_url_: &str,
         chain_name: &str,
-        private_key: Option<&str>,
+        signer: PrivateKeySigner,
     ) -> Result<Self> {
         let network_name = ChainName::from(chain_name);
         let rpc_url = rpc_url_.parse()?;
-        let signer: PrivateKeySigner = if let Some(pk) = private_key {
-            pk.parse().expect("invalid private key")
-        } else {
-            PrivateKeySigner::random()
-        };
         let wallet = EthereumWallet::from(signer);
         let provider = ProviderBuilder::new()
             .with_recommended_fillers()
@@ -45,7 +39,6 @@ impl Web3Client {
             Web3Client {
                 provider,
                 network_name,
-                with_signer: private_key.is_some(),
             }
         )
     }

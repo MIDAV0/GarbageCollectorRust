@@ -1317,6 +1317,8 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "eyre",
+ "serde",
+ "serde_json",
  "tokio",
  "tokio-macros",
 ]

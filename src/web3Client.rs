@@ -18,35 +18,44 @@ sol!(
 );
 
 pub struct Web3Client {
-    provider: MyFiller,
     network_name: ChainName,
+    network_rpc_url: String,
+    signer: PrivateKeySigner,
 }
 
 impl Web3Client {
     pub fn new(
-        rpc_url_: &str,
         chain_name: &str,
-        signer: PrivateKeySigner,
+        signer_: Option<PrivateKeySigner>,
     ) -> Result<Self> {
         let network_name = ChainName::from(chain_name);
-        let rpc_url = rpc_url_.parse()?;
-        let wallet = EthereumWallet::from(signer);
-        let provider = ProviderBuilder::new()
-            .with_recommended_fillers()
-            .wallet(wallet)
-            .on_http(rpc_url);
+        let signer = signer_.unwrap_or(PrivateKeySigner::random());
         Ok(
             Web3Client {
-                provider,
                 network_name,
+                network_rpc_url: "".to_string(),
+                signer,
             }
         )
     }
 
-    pub async fn get_erc20_token_balance(&self, token_address: &str, address: &str) -> Result<U256> {
-        let contract = ERC20::new(token_address.parse()?, self.provider.clone());
-        let ERC20::balanceOfReturn { balance } = contract.balanceOf(address.parse::<Address>()?).call().await?;
-
-        Ok(balance)
+    pub fn set_network_rpc(&mut self, network_rpc_url_: &str) {
+        self.network_rpc_url = network_rpc_url_.to_string();
     }
+
+    fn get_provider(&self) -> Result<MyFiller> {
+        let rpc_url = self.network_rpc_url.clone().parse()?;
+        let wallet = EthereumWallet::from(self.signer.clone());
+        Ok(ProviderBuilder::new()
+            .with_recommended_fillers()
+            .wallet(wallet)
+            .on_http(rpc_url))
+    }
+
+    // pub async fn get_erc20_token_balance(&self, token_address: &str, address: &str) -> Result<U256> {
+    //     let contract = ERC20::new(token_address.parse()?, self.provider.clone());
+    //     let ERC20::balanceOfReturn { balance } = contract.balanceOf(address.parse::<Address>()?).call().await?;
+
+    //     Ok(balance)
+    // }
 }

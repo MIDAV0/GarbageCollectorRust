@@ -17,6 +17,13 @@ sol!(
     "src/utils/contract_abis/ERC20.json"
 );
 
+sol!(
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    Multicall,
+    "src/utils/contract_abis/Multicall2.json"
+);
+
 pub struct Web3Client {
     network_name: ChainName,
     network_rpc_url: String,

@@ -28,7 +28,7 @@ struct NonzeroTokenData {
 pub struct GarbageCollector {
     signer: PrivateKeySigner,
     // Map of chains to token data
-    token_lists: HashMap<String, TokenData>,
+    token_lists: HashMap<String, Vec<TokenData>>,
     // Map of chains to nonzero tokens that user has
     nonzero_tokens: HashMap<String, TokenData>,
     // Vector of chain IDs to exclude from the garbage collection
@@ -74,12 +74,15 @@ impl GarbageCollector {
         Ok(v)
     }
 
-    fn fetch_tokens(network_name: String) -> Result<Value> {
+    fn fetch_tokens(network_name: String) -> Option<Value> {
         let file_path = format!("data/token_lists/{}.json", network_name);
         // Dont panic if file is not found
-        let contents = fs::read_to_string(file_path).expect("Couldn't find or load that file.");
-        let v: Value = serde_json::from_str(&contents)?;
-        Ok(v)
+        let contents = fs::read_to_string(file_path);
+        if let Ok(contents) = contents {
+            serde_json::from_str(&contents).ok()
+        } else {
+            None
+        }
     }
 
     fn test_parser() -> Result<()> {
@@ -100,18 +103,26 @@ impl GarbageCollector {
         Ok(())
     }
 
-    pub fn get_non_zero_tokens(&self) {
+    pub fn get_non_zero_tokens(&mut self) -> Result<()> {
         for (k,v) in self.chain_data.as_object().unwrap() {
-            println!("----------------");
-            // Continue if token list is None
             let token_list = GarbageCollector::fetch_tokens(k.to_string());
 
-            if token_list.is_err() {
-                continue;
+            // Continue if token list is None
+            if let Some(t_l) = token_list {
+                let converted_token_list: Vec<TokenData> = t_l.as_array().unwrap().iter().map(|token| {
+                    TokenData {
+                        chain_id: token["chainId"].as_u64().unwrap() as u32,
+                        address: token["address"].as_str().unwrap().to_string(),
+                        name: token["name"].as_str().unwrap().to_string(),
+                        symbol: token["symbol"].as_str().unwrap().to_string(),
+                        decimals: token["decimals"].as_u64().unwrap() as u8,
+                        logo_uri: token["logoURI"].as_str().unwrap_or("").to_string(),
+                    }
+                }).collect();
+                self.token_lists.insert(k.to_string(), converted_token_list);
             }
-
-            println!("{}", token_list.unwrap()[0]);
         }
+        Ok(())
     }
 
     fn get_non_zero_tokens_for_chain(&self, network_name: &str) {

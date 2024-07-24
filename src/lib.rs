@@ -128,7 +128,7 @@ impl GarbageCollector {
     fn get_non_zero_tokens_for_chain(&self, network_name: &str) {
         let chain_rpc = self.chain_data[network_name]["rpc"][0].as_str().unwrap();
         let mut web3_client = web3Client::Web3Client::new(network_name, Some(self.signer.clone())).unwrap();
-        web3_client.set_network_rpc(chain_rpc);
+        // web3_client.set_network_rpc(chain_rpc);
     }
 }
 

@@ -1,5 +1,20 @@
+use std::ops::Add;
+
 use alloy::{
-    contract::Interface, json_abi::JsonAbi, network::{Ethereum, EthereumWallet}, primitives::{Address, U128, U256, U64}, providers::{fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller}, Identity, ProviderBuilder, RootProvider}, signers::local::PrivateKeySigner, sol, transports::http::{Client, Http}
+    contract::Interface,
+    dyn_abi::DynSolValue,
+    json_abi::JsonAbi,
+    network::{Ethereum, EthereumWallet},
+    primitives::{Bytes, Address, U128, U256, U64},
+    providers::{
+        fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller},
+        Identity,
+        ProviderBuilder,
+        RootProvider
+    },
+    signers::local::PrivateKeySigner,
+    sol,
+    transports::http::{Client, Http}
 };
 use eyre::Result;
 use crate::const_types::ChainName;
@@ -33,6 +48,8 @@ pub struct Web3Client {
     network_name: ChainName,
     network: Network,
     signer: PrivateKeySigner,
+    multicall_interface: Interface,
+    erc20_interface: Interface,
 }
 
 impl Web3Client {
@@ -40,12 +57,19 @@ impl Web3Client {
         chain_name: &str,
         signer_: Option<PrivateKeySigner>,
     ) -> Result<Self> {
-        let path = "src/utils/contract_abis/Multicall2.json";
-        let json = std::fs::read_to_string(path).unwrap();
-        let abi: JsonAbi = serde_json::from_str(&json).unwrap();
-        let multicall_interface = Interface::new(abi);
-        // multicall_interface.encode_input(name, args)
-
+        let multicall_interface = {
+            let path = "src/utils/contract_abis/Multicall2.json";
+            let json = std::fs::read_to_string(path).unwrap();
+            let abi: JsonAbi = serde_json::from_str(&json).unwrap();
+            Interface::new(abi)
+        };
+        
+        let erc20_interface = {
+            let path = "src/utils/contract_abis/ERC20.json";
+            let json = std::fs::read_to_string(path).unwrap();
+            let abi: JsonAbi = serde_json::from_str(&json).unwrap();
+            Interface::new(abi)
+        };
 
         let network_name = ChainName::from(chain_name);
         let signer = signer_.unwrap_or(PrivateKeySigner::random());
@@ -54,6 +78,8 @@ impl Web3Client {
                 network_name,
                 network: Network::default(),
                 signer,
+                multicall_interface,
+                erc20_interface,
             }
         )
     }
@@ -71,8 +97,55 @@ impl Web3Client {
             .on_http(rpc_url))
     }
 
-    pub fn call_balance(&self, wallet_address: String, tokens: Vec<String>) -> Result<()> {
-        let provider: MyFiller = self.get_provider()?;
+    pub async fn call_balance(&self, wallet_address: String, tokens: Vec<String>) -> Result<()> {
+        let provider: MyFiller = self.get_provider().expect("Failed to get provider");
+        let multicall = Multicall::new(self.network.multicall.parse()?, provider.clone());
+        let max_retries = 2;
+
+        let mut calls: Vec<Multicall::Call> = vec![];
+        let batch_size = 500;
+        for (index, token) in tokens.iter().enumerate() {
+            let token_address = token.parse::<Address>()?;
+            if token.to_lowercase() == "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".to_owned().to_lowercase() {
+                let call_data = Bytes::copy_from_slice(&self.multicall_interface.encode_input("getEthBalance", &[
+                    DynSolValue::Address(wallet_address.parse()?)
+                ])?);
+                calls.push(Multicall::Call {
+                    target: token_address,
+                    callData: call_data,
+                });
+            } else {
+                let call_data = Bytes::copy_from_slice(&self.erc20_interface.encode_input("balanceOf", &[
+                    DynSolValue::Address(wallet_address.parse()?)
+                ])?);
+                calls.push(Multicall::Call {
+                    target: token_address,
+                    callData: call_data,
+                });
+            }
+
+            // If batch size is reached or if it's the last token in the list then aggregate the calls
+            if ((index + 1) % batch_size == 0 && index != 0) || index + 1 >= tokens.len() {
+                // Aggregate the calls
+                let mut res: Vec<Multicall::Result>;
+                let mut retry_count = 0;
+                while retry_count < max_retries {
+                    let Multicall::tryAggregateReturn { returnData } = multicall.tryAggregate(false, calls.clone()).call().await?;
+                    if returnData.is_empty() {
+                        retry_count += 1;
+                        continue;
+                    }
+                    res = returnData;
+                    println!("{}", res.len());
+
+                }
+
+
+                calls.clear();
+                // Sleep for 0.2 seconds
+            }
+        }
+
 
         Ok(())
     }
@@ -86,7 +159,22 @@ impl Web3Client {
 }
 
 #[test]
-fn test_hash() {
-    let hash = eip191_hash_message(b"transferFrom");
-    println!("{}", hash.to_string());
+fn test_constructor() {
+    let web3_client = Web3Client::new("Ethereum", None).unwrap();
+}
+
+#[test]
+fn test_encode_function_data() {
+    let multicall_interface = {
+        let path = "src/utils/contract_abis/Multicall2.json";
+        let json = std::fs::read_to_string(path).unwrap();
+        let abi: JsonAbi = serde_json::from_str(&json).unwrap();
+        Interface::new(abi)
+    };
+    let address = "0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19";
+
+    let result = multicall_interface.encode_input("getEthBalance", &[
+        DynSolValue::Address(address.parse().unwrap())
+    ]).unwrap();
+    println!("{:?}", result);
 }

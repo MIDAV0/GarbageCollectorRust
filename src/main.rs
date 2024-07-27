@@ -3,8 +3,6 @@ use garbage_collector_rust::GarbageCollector;
 
 enum Scenario {
     BalanceChecker,
-    Scenario2,
-    Scenario3,
 }
 
 #[tokio::main]
@@ -27,12 +25,6 @@ async fn main() -> Result<()> {
             for key in keys_vec {
                 garbage_collector.connect_signer(key.parse().expect("invalid private key"));
             }
-        }
-        Scenario::Scenario2 => {
-            println!("Scenario 2");
-        }
-        Scenario::Scenario3 => {
-            println!("Scenario 3");
         }
     }
 

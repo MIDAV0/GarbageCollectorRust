@@ -1,4 +1,4 @@
-use std::{io::Read, ops::Add};
+use std::{fs,time};
 
 use alloy::{
     contract::Interface, dyn_abi::DynSolValue, json_abi::JsonAbi, network::{Ethereum, EthereumWallet}, primitives::{ Address, Bytes, U256 }, providers::{
@@ -84,14 +84,14 @@ impl Web3Client {
     ) -> Result<Self> {
         let multicall_interface = {
             let path = "src/utils/contract_abis/Multicall2.json";
-            let json = std::fs::read_to_string(path)?;
+            let json = fs::read_to_string(path)?;
             let abi: JsonAbi = serde_json::from_str(&json)?;
             Interface::new(abi)
         };
         
         let erc20_interface = {
             let path = "src/utils/contract_abis/ERC20.json";
-            let json = std::fs::read_to_string(path)?;
+            let json = fs::read_to_string(path)?;
             let abi: JsonAbi = serde_json::from_str(&json)?;
             Interface::new(abi)
         };
@@ -121,6 +121,11 @@ impl Web3Client {
             .on_http(self.network.rpc_url.clone()))
     }
 
+    // Sleep function
+    async fn sleep(duration: time::Duration) {
+        tokio::time::sleep(duration).await;
+    }
+
     pub async fn get_user_balance(provider: MyFiller, wallet_address: Address, token_address: Option<String>) -> Result<U256> {
         if let Some(token) = token_address {
             let erc20 = ERC20::new(token.parse()?, provider.clone());
@@ -139,7 +144,7 @@ impl Web3Client {
         let mut calls: Vec<Multicall::Call> = vec![];
         let batch_size = 500;
         for (index, token) in tokens.iter().enumerate() {
-            let token_address = token.clone();
+            let token_address = *token;
             if token == &Address::ZERO {
                 let call_data = Bytes::copy_from_slice(&self.multicall_interface.encode_input("getEthBalance", &[
                     DynSolValue::Address(wallet_address)
@@ -169,12 +174,12 @@ impl Web3Client {
                         Err(e) => {
                             println!("Error: {:?}", e);
                             retry_count += 1;
-                            // Sleep for 5 seconds
+                            Self::sleep(time::Duration::from_millis(5000)).await;
                             continue;
                         }
                     };
                     for (index, balance_data) in returnData.iter().enumerate() {
-                        if balance_data.success == false {
+                        if !balance_data.success {
                             println!("Failed to get balance for token: {}", tokens[index]);
                             continue;
                         }
@@ -195,10 +200,9 @@ impl Web3Client {
                     break;
                 }
                 calls.clear();
-                // Sleep for 0.2 seconds
+                Self::sleep(time::Duration::from_millis(200)).await;
             }
         }
-
         Ok(balances)
     }
 }
@@ -207,7 +211,7 @@ impl Web3Client {
 fn test_encode_function_data() {
     let multicall_interface = {
         let path = "src/utils/contract_abis/Multicall2.json";
-        let json = std::fs::read_to_string(path).unwrap();
+        let json = fs::read_to_string(path).unwrap();
         let abi: JsonAbi = serde_json::from_str(&json).unwrap();
         Interface::new(abi)
     };

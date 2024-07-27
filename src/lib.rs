@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use alloy::{primitives::Address, signers::local::PrivateKeySigner};
-use const_types::ChainName;
-use std::{fs, io};
+use std::fs;
 use serde_json::Value;
 use eyre::Result;
 use reqwest::Url;
@@ -18,24 +17,24 @@ struct TokenData {
     logo_uri: String,
 }
 
-struct NonzeroTokenData {
-    address: String,
-    name: String,
-    symbol: String,
-    decimals: u8,
-    balance: u128,
-}
+// struct NonzeroTokenData {
+//     address: String,
+//     name: String,
+//     symbol: String,
+//     decimals: u8,
+//     balance: u128,
+// }
 
 pub struct GarbageCollector {
     signer: PrivateKeySigner,
     // Map of chains to token data
     token_lists: HashMap<String, Vec<TokenData>>,
     // Map of chains to nonzero tokens that user has
-    nonzero_tokens: HashMap<String, TokenData>,
-    // Vector of chain IDs to exclude from the garbage collection
-    chains_to_exclude: Vec<u32>,
-    // Vector of token addresses to exclude from the garbage collection
-    tokens_to_exclude: Vec<String>,
+    // nonzero_tokens: HashMap<String, TokenData>,
+    // // Vector of chain IDs to exclude from the garbage collection
+    // chains_to_exclude: Vec<u32>,
+    // // Vector of token addresses to exclude from the garbage collection
+    // tokens_to_exclude: Vec<String>,
     // Chain JSON data
     chain_data: Value,
 }
@@ -45,9 +44,9 @@ impl Default for GarbageCollector {
         GarbageCollector {
             signer: PrivateKeySigner::random(),
             token_lists: HashMap::new(),
-            nonzero_tokens: HashMap::new(),
-            chains_to_exclude: Vec::new(),
-            tokens_to_exclude: Vec::new(),
+            // nonzero_tokens: HashMap::new(),
+            // chains_to_exclude: Vec::new(),
+            // tokens_to_exclude: Vec::new(),
             chain_data: Value::Null,
         }
     }
@@ -102,11 +101,11 @@ impl GarbageCollector {
                 }
             }).collect();
             self.token_lists.insert(k.to_string(), converted_token_list);
-            let _ = self.get_non_zero_tokens_for_chain(k, Some("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".to_owned())).await?;
-            // if res.is_err() {
-            //     println!("Error getting non-zero tokens for chain {}", k);
-            //     continue;
-            // }
+            let res = self.get_non_zero_tokens_for_chain(k, Some("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".to_owned())).await;
+            if res.is_err() {
+                println!("Error getting non-zero tokens for chain {}", k);
+                continue;
+            }
         }
         Ok(())
     }
@@ -126,9 +125,15 @@ impl GarbageCollector {
             self.chain_data[network_name]["multicall"].as_str().unwrap().parse::<Address>().unwrap_or(Address::ZERO),
         ));
         
-        let token_addresses = self.token_lists.get(network_name).unwrap().iter().map(|token| token.address.clone()).collect();
-        let balance_list = web3_client.call_balance(target_wallet, token_addresses).await?;
-        println!("Balance on chain {}: {:?}", network_name, balance_list);
+        let token_addresses = self.token_lists.get(network_name).unwrap_or(&vec![]).iter().map(|token| token.address).collect();
+        let balance_list =  match web3_client.call_balance(target_wallet, token_addresses).await {
+            Ok(b_l) => b_l,
+            Err(e) => {
+                println!("Error getting balance list: {:?}", e);
+                return Err(eyre::eyre!("Error getting balance list"));
+            }
+        };
+        println!("Balance on chain {network_name}: {balance_list:?}");
         Ok(())
     }
 }

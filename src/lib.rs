@@ -4,13 +4,14 @@ use const_types::ChainName;
 use std::{fs, io};
 use serde_json::Value;
 use eyre::Result;
+use reqwest::Url;
 
 mod web3_client;
 mod const_types;
 
 struct TokenData {
     chain_id: u32,
-    address: String,
+    address: Address,
     name: String,
     symbol: String,
     decimals: u8,
@@ -93,7 +94,7 @@ impl GarbageCollector {
             let converted_token_list: Vec<TokenData> = token_list.as_array().unwrap().iter().map(|token| {
                 TokenData {
                     chain_id: token["chainId"].as_u64().unwrap() as u32,
-                    address: token["address"].as_str().unwrap().to_string(),
+                    address: token["address"].as_str().unwrap().parse::<Address>().unwrap_or(Address::ZERO),
                     name: token["name"].as_str().unwrap().to_string(),
                     symbol: token["symbol"].as_str().unwrap().to_string(),
                     decimals: token["decimals"].as_u64().unwrap() as u8,
@@ -101,11 +102,11 @@ impl GarbageCollector {
                 }
             }).collect();
             self.token_lists.insert(k.to_string(), converted_token_list);
-            let res = self.get_non_zero_tokens_for_chain(k, Some("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".to_owned())).await;
-            if res.is_err() {
-                println!("Error getting non-zero tokens for chain {}", k);
-                continue;
-            }
+            let _ = self.get_non_zero_tokens_for_chain(k, Some("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".to_owned())).await?;
+            // if res.is_err() {
+            //     println!("Error getting non-zero tokens for chain {}", k);
+            //     continue;
+            // }
         }
         Ok(())
     }
@@ -120,9 +121,9 @@ impl GarbageCollector {
         web3_client.set_network_rpc(web3_client::Network::new( 
             self.chain_data[network_name]["id"].as_i64().unwrap() as i32,
             self.chain_data[network_name]["lz_id"].to_string(),
-            self.chain_data[network_name]["rpc"][0].to_string(),
+            Url::parse(self.chain_data[network_name]["rpc"][0].as_str().unwrap()).unwrap(),
             self.chain_data[network_name]["explorer"].to_string(),
-            self.chain_data[network_name]["multicall"].to_string(),
+            self.chain_data[network_name]["multicall"].as_str().unwrap().parse::<Address>().unwrap_or(Address::ZERO),
         ));
         
         let token_addresses = self.token_lists.get(network_name).unwrap().iter().map(|token| token.address.clone()).collect();
@@ -142,5 +143,5 @@ fn test_json_parser() {
 #[tokio::test]
 async fn test_get_non_zero_tokens() {
     let mut garbage_collector = GarbageCollector::new();
-    garbage_collector.get_non_zero_tokens().await.unwrap();
+    let _ = garbage_collector.get_non_zero_tokens().await.unwrap();
 }

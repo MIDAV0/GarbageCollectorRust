@@ -6,6 +6,7 @@ use alloy::{
     }, signers::local::PrivateKeySigner, sol, transports::http::{Client, Http}
 };
 use eyre::Result;
+use reqwest::Url;
 use crate::const_types::ChainName;
 
 type MyFiller = FillProvider<JoinFill<JoinFill<JoinFill<JoinFill<Identity, GasFiller>, NonceFiller>, ChainIdFiller>, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
@@ -24,22 +25,33 @@ sol!(
     "src/utils/contract_abis/Multicall2.json"
 );
 
-#[derive(Default)]
 pub struct Network {
     id: i32,
     lz_id: String,
-    rpc_url: String,
+    rpc_url: Url,
     explorer: String,
-    multicall: String,
+    multicall: Address,
+}
+
+impl Default for Network {
+    fn default() -> Self {
+        Network {
+            id: 0,
+            lz_id: "".to_owned(),
+            rpc_url: Url::parse("https://ethereum.publicnode.com").unwrap(),
+            explorer: "".to_owned(),
+            multicall: Address::ZERO,
+        }
+    }
 }
 
 impl Network {
     pub fn new(
         id: i32,
         lz_id: String,
-        rpc_url: String,
+        rpc_url: Url,
         explorer: String,
-        multicall: String,
+        multicall: Address,
     ) -> Self {
         Network {
             id,
@@ -53,7 +65,7 @@ impl Network {
 
 #[derive(Debug)]
 pub struct Balance {
-    token_address: String,
+    token_address: Address,
     balance: U256,
 }
 
@@ -102,12 +114,11 @@ impl Web3Client {
     }
 
     fn get_provider(&self) -> Result<MyFiller> {
-        let rpc_url = self.network.rpc_url.clone().parse()?;
         let wallet = EthereumWallet::from(self.signer.clone());
         Ok(ProviderBuilder::new()
             .with_recommended_fillers()
             .wallet(wallet)
-            .on_http(rpc_url))
+            .on_http(self.network.rpc_url.clone()))
     }
 
     pub async fn get_user_balance(provider: MyFiller, wallet_address: Address, token_address: Option<String>) -> Result<U256> {
@@ -120,16 +131,16 @@ impl Web3Client {
         }
     }
 
-    pub async fn call_balance(&self, wallet_address: Address, tokens: Vec<String>) -> Result<Vec<Balance>> {
+    pub async fn call_balance(&self, wallet_address: Address, tokens: Vec<Address>) -> Result<Vec<Balance>> {
         let provider: MyFiller = self.get_provider()?;
-        let multicall = Multicall::new(self.network.multicall.parse()?, provider.clone());
+        let multicall = Multicall::new(self.network.multicall, provider.clone());
         let max_retries = 2;
         let mut balances: Vec<Balance> = vec![];
         let mut calls: Vec<Multicall::Call> = vec![];
         let batch_size = 500;
         for (index, token) in tokens.iter().enumerate() {
-            let token_address = token.parse::<Address>()?;
-            if token.to_lowercase() == "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".to_owned().to_lowercase() {
+            let token_address = token.clone();
+            if token == &Address::ZERO {
                 let call_data = Bytes::copy_from_slice(&self.multicall_interface.encode_input("getEthBalance", &[
                     DynSolValue::Address(wallet_address)
                 ])?);
@@ -176,7 +187,7 @@ impl Web3Client {
                         };
                         if balance > U256::from(0) {
                             balances.push(Balance {
-                                token_address: tokens[index].clone(),
+                                token_address: tokens[index],
                                 balance,
                             });
                         }
@@ -214,11 +225,11 @@ async fn test_call_balance() {
     web3_client.set_network_rpc(Network {
         id: 1,
         lz_id: "101".to_owned(),
-        rpc_url: "https://ethereum.publicnode.com".to_owned(),
+        rpc_url: "https://ethereum.publicnode.com".parse::<Url>().unwrap(),
         explorer: "https://etherscan.io/tx/".to_owned(),
-        multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".to_owned(),
+        multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap(),
     });
-    let _ = web3_client.call_balance("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".parse().unwrap(), vec!["0x6FF2241756549B5816A177659E766EAf14B34429".to_owned()]).await;
+    let _ = web3_client.call_balance("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".parse().unwrap(), vec!["0x6FF2241756549B5816A177659E766EAf14B34429".parse::<Address>().unwrap()]).await;
 }
 
 #[tokio::test]
@@ -227,9 +238,9 @@ async fn test_get_balance() {
     web3_client.set_network_rpc(Network {
         id: 1,
         lz_id: "101".to_owned(),
-        rpc_url: "https://ethereum.publicnode.com".to_owned(),
+        rpc_url: "https://ethereum.publicnode.com".parse::<Url>().unwrap(),
         explorer: "https://etherscan.io/tx/".to_owned(),
-        multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".to_owned(),
+        multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap(),
     });
     let provider: MyFiller = web3_client.get_provider().unwrap();
     let balance = Web3Client::get_user_balance(provider, "0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".parse().unwrap(), None).await.unwrap();

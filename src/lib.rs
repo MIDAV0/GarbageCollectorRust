@@ -74,15 +74,12 @@ impl GarbageCollector {
         Ok(v)
     }
 
-    fn fetch_tokens(network_name: String) -> Option<Value> {
+    fn fetch_tokens(network_name: String) -> Result<Value> {
         let file_path = format!("data/token_lists/{}.json", network_name);
         // Dont panic if file is not found
-        let contents = fs::read_to_string(file_path);
-        if let Ok(contents) = contents {
-            serde_json::from_str(&contents).ok()
-        } else {
-            None
-        }
+        let contents = fs::read_to_string(file_path)?;
+        let v: Value = serde_json::from_str(&contents)?;
+        Ok(v)
     }
 
     fn test_parser() -> Result<()> {
@@ -105,22 +102,24 @@ impl GarbageCollector {
 
     pub fn get_non_zero_tokens(&mut self) -> Result<()> {
         for (k,v) in self.chain_data.as_object().unwrap() {
-            let token_list = GarbageCollector::fetch_tokens(k.to_string());
+            let token_list_result = GarbageCollector::fetch_tokens(k.to_string());
 
+            let token_list = match token_list_result {
+                Ok(t_l) =>t_l,
+                Err(_) => continue,
+            };
             // Continue if token list is None
-            if let Some(t_l) = token_list {
-                let converted_token_list: Vec<TokenData> = t_l.as_array().unwrap().iter().map(|token| {
-                    TokenData {
-                        chain_id: token["chainId"].as_u64().unwrap() as u32,
-                        address: token["address"].as_str().unwrap().to_string(),
-                        name: token["name"].as_str().unwrap().to_string(),
-                        symbol: token["symbol"].as_str().unwrap().to_string(),
-                        decimals: token["decimals"].as_u64().unwrap() as u8,
-                        logo_uri: token["logoURI"].as_str().unwrap_or("").to_string(),
-                    }
-                }).collect();
-                self.token_lists.insert(k.to_string(), converted_token_list);
-            }
+            let converted_token_list: Vec<TokenData> = token_list.as_array().unwrap().iter().map(|token| {
+                TokenData {
+                    chain_id: token["chainId"].as_u64().unwrap() as u32,
+                    address: token["address"].as_str().unwrap().to_string(),
+                    name: token["name"].as_str().unwrap().to_string(),
+                    symbol: token["symbol"].as_str().unwrap().to_string(),
+                    decimals: token["decimals"].as_u64().unwrap() as u8,
+                    logo_uri: token["logoURI"].as_str().unwrap_or("").to_string(),
+                }
+            }).collect();
+            self.token_lists.insert(k.to_string(), converted_token_list);
         }
         Ok(())
     }

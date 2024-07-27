@@ -1,20 +1,12 @@
-use std::ops::Add;
+use std::{io::Read, ops::Add};
 
 use alloy::{
-    contract::Interface,
-    dyn_abi::DynSolValue,
-    json_abi::JsonAbi,
-    network::{Ethereum, EthereumWallet},
-    primitives::{Bytes, Address, U128, U256, U64},
-    providers::{
+    contract::Interface, dyn_abi::DynSolValue, json_abi::JsonAbi, network::{Ethereum, EthereumWallet}, primitives::{bytes::Buf, Address, Bytes, U128, U256, U64}, providers::{
         fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller},
         Identity,
         ProviderBuilder,
         RootProvider
-    },
-    signers::local::PrivateKeySigner,
-    sol,
-    transports::http::{Client, Http}
+    }, signers::local::PrivateKeySigner, sol, sol_types::SolCall, transports::http::{Client, Http}
 };
 use eyre::Result;
 use crate::const_types::ChainName;
@@ -44,6 +36,12 @@ struct Network {
     multicall: String,
 }
 
+#[derive(Debug)]
+struct Balance {
+    token_address: String,
+    balance: U256,
+}
+
 pub struct Web3Client {
     network_name: ChainName,
     network: Network,
@@ -59,15 +57,15 @@ impl Web3Client {
     ) -> Result<Self> {
         let multicall_interface = {
             let path = "src/utils/contract_abis/Multicall2.json";
-            let json = std::fs::read_to_string(path).unwrap();
-            let abi: JsonAbi = serde_json::from_str(&json).unwrap();
+            let json = std::fs::read_to_string(path)?;
+            let abi: JsonAbi = serde_json::from_str(&json)?;
             Interface::new(abi)
         };
         
         let erc20_interface = {
             let path = "src/utils/contract_abis/ERC20.json";
-            let json = std::fs::read_to_string(path).unwrap();
-            let abi: JsonAbi = serde_json::from_str(&json).unwrap();
+            let json = std::fs::read_to_string(path)?;
+            let abi: JsonAbi = serde_json::from_str(&json)?;
             Interface::new(abi)
         };
 
@@ -97,11 +95,11 @@ impl Web3Client {
             .on_http(rpc_url))
     }
 
-    pub async fn call_balance(&self, wallet_address: String, tokens: Vec<String>) -> Result<()> {
+    pub async fn call_balance(&self, wallet_address: String, tokens: Vec<String>) -> Result<Vec<Balance>> {
         let provider: MyFiller = self.get_provider().expect("Failed to get provider");
         let multicall = Multicall::new(self.network.multicall.parse()?, provider.clone());
         let max_retries = 2;
-
+        let mut balances: Vec<Balance> = vec![];
         let mut calls: Vec<Multicall::Call> = vec![];
         let batch_size = 500;
         for (index, token) in tokens.iter().enumerate() {
@@ -127,40 +125,44 @@ impl Web3Client {
             // If batch size is reached or if it's the last token in the list then aggregate the calls
             if ((index + 1) % batch_size == 0 && index != 0) || index + 1 >= tokens.len() {
                 // Aggregate the calls
-                let mut res: Vec<Multicall::Result>;
                 let mut retry_count = 0;
                 while retry_count < max_retries {
-                    let Multicall::tryAggregateReturn { returnData } = multicall.tryAggregate(false, calls.clone()).call().await?;
-                    if returnData.is_empty() {
-                        retry_count += 1;
-                        continue;
+                    let call_result = multicall.tryAggregate(false, calls.clone()).call().await;
+                    let Multicall::tryAggregateReturn { returnData } = match call_result {
+                        Ok(data) => data,
+                        Err(e) => {
+                            println!("Error: {:?}", e);
+                            retry_count += 1;
+                            // Sleep for 5 seconds
+                            continue;
+                        }
+                    };
+                    for (index, balance_data) in returnData.iter().enumerate() {
+                        if balance_data.success == false {
+                            println!("Failed to get balance for token: {}", tokens[index]);
+                            continue;
+                        }
+                        let balance = match U256::try_from_be_slice(&balance_data.returnData) {
+                            Some(b) => b,
+                            None => {
+                                println!("Failed to convert balance data to U256 for token: {}", tokens[index]);
+                                continue;
+                            }
+                        };
+                        balances.push(Balance {
+                            token_address: tokens[index].clone(),
+                            balance,
+                        });
                     }
-                    res = returnData;
-                    println!("{}", res.len());
-
+                    break;
                 }
-
-
                 calls.clear();
                 // Sleep for 0.2 seconds
             }
         }
 
-
-        Ok(())
+        Ok(balances)
     }
-
-    // pub async fn get_erc20_token_balance(&self, token_address: &str, address: &str) -> Result<U256> {
-    //     let contract = ERC20::new(token_address.parse()?, self.provider.clone());
-    //     let ERC20::balanceOfReturn { balance } = contract.balanceOf(address.parse::<Address>()?).call().await?;
-
-    //     Ok(balance)
-    // }
-}
-
-#[test]
-fn test_constructor() {
-    let web3_client = Web3Client::new("Ethereum", None).unwrap();
 }
 
 #[test]
@@ -177,4 +179,17 @@ fn test_encode_function_data() {
         DynSolValue::Address(address.parse().unwrap())
     ]).unwrap();
     println!("{:?}", result);
+}
+
+#[tokio::test]
+async fn test_call_balance() {
+    let mut web3_client = Web3Client::new("Ethereum", None).unwrap();
+    web3_client.set_network_rpc(Network {
+        id: 1,
+        lz_id: "101".to_owned(),
+        rpc_url: "https://ethereum.publicnode.com".to_owned(),
+        explorer: "https://etherscan.io/tx/".to_owned(),
+        multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".to_owned(),
+    });
+    web3_client.call_balance("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".to_owned(), vec!["0x6FF2241756549B5816A177659E766EAf14B34429".to_owned()]).await;
 }

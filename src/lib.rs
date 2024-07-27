@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use alloy::signers::local::PrivateKeySigner;
+use alloy::{primitives::Address, signers::local::PrivateKeySigner};
 use const_types::ChainName;
 use std::{fs, io};
 use serde_json::Value;
 use eyre::Result;
 
-mod web3Client;
+mod web3_client;
 mod const_types;
 
 struct TokenData {
@@ -82,33 +82,14 @@ impl GarbageCollector {
         Ok(v)
     }
 
-    fn test_parser() -> Result<()> {
-        let entries = fs::read_dir("data/token_lists").unwrap();
-
-        // Extract the filenames from the directory entries and store them in a vector
-        let file_names: Vec<String> = entries
-            .filter_map(|entry| {
-                let path = entry.ok()?.path();
-                if path.is_file() {
-                    path.file_name()?.to_str().map(|s| s.to_owned())
-                } else {
-                    None
-                }
-            })
-            .collect();
-        println!("{:?}", file_names);
-        Ok(())
-    }
-
-    pub fn get_non_zero_tokens(&mut self) -> Result<()> {
-        for (k,v) in self.chain_data.as_object().unwrap() {
+    pub async fn get_non_zero_tokens(&mut self) -> Result<()> {
+        for (k, _) in self.chain_data.as_object().unwrap() {
             let token_list_result = GarbageCollector::fetch_tokens(k.to_string());
 
             let token_list = match token_list_result {
                 Ok(t_l) =>t_l,
                 Err(_) => continue,
             };
-            // Continue if token list is None
             let converted_token_list: Vec<TokenData> = token_list.as_array().unwrap().iter().map(|token| {
                 TokenData {
                     chain_id: token["chainId"].as_u64().unwrap() as u32,
@@ -120,14 +101,34 @@ impl GarbageCollector {
                 }
             }).collect();
             self.token_lists.insert(k.to_string(), converted_token_list);
+            let res = self.get_non_zero_tokens_for_chain(k, Some("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".to_owned())).await;
+            if res.is_err() {
+                println!("Error getting non-zero tokens for chain {}", k);
+                continue;
+            }
         }
         Ok(())
     }
 
-    fn get_non_zero_tokens_for_chain(&self, network_name: &str) {
-        let chain_rpc = self.chain_data[network_name]["rpc"][0].as_str().unwrap();
-        let mut web3_client = web3Client::Web3Client::new(network_name, Some(self.signer.clone())).unwrap();
-        // web3_client.set_network_rpc(chain_rpc);
+    async fn get_non_zero_tokens_for_chain(&self, network_name: &String, target_wallet_: Option<String>) -> Result<()> {
+        println!("Getting non-zero tokens for chain {}", network_name);
+        let mut web3_client = web3_client::Web3Client::new(network_name, Some(self.signer.clone())).unwrap();
+        let target_wallet = match target_wallet_ {
+            Some(t_w) => t_w.parse::<Address>().unwrap(),
+            None => self.signer.address(),
+        };
+        web3_client.set_network_rpc(web3_client::Network::new( 
+            self.chain_data[network_name]["id"].as_i64().unwrap() as i32,
+            self.chain_data[network_name]["lz_id"].to_string(),
+            self.chain_data[network_name]["rpc"][0].to_string(),
+            self.chain_data[network_name]["explorer"].to_string(),
+            self.chain_data[network_name]["multicall"].to_string(),
+        ));
+        
+        let token_addresses = self.token_lists.get(network_name).unwrap().iter().map(|token| token.address.clone()).collect();
+        let balance_list = web3_client.call_balance(target_wallet, token_addresses).await?;
+        println!("Balance on chain {}: {:?}", network_name, balance_list);
+        Ok(())
     }
 }
 
@@ -138,14 +139,8 @@ fn test_json_parser() {
     assert_eq!(result.is_ok(), true);
 }
 
-#[test]
-fn test_get_non_zero_tokens() {
+#[tokio::test]
+async fn test_get_non_zero_tokens() {
     let mut garbage_collector = GarbageCollector::new();
-    garbage_collector.get_non_zero_tokens();
-}
-
-#[test]
-fn test_parser() {
-    let result = GarbageCollector::test_parser();
-    assert_eq!(result.is_ok(), true);
+    garbage_collector.get_non_zero_tokens().await.unwrap();
 }

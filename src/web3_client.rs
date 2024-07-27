@@ -1,12 +1,9 @@
 use std::{io::Read, ops::Add};
 
 use alloy::{
-    contract::Interface, dyn_abi::DynSolValue, json_abi::JsonAbi, network::{Ethereum, EthereumWallet}, primitives::{bytes::Buf, Address, Bytes, U128, U256, U64}, providers::{
-        fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller},
-        Identity,
-        ProviderBuilder,
-        RootProvider
-    }, signers::local::PrivateKeySigner, sol, sol_types::SolCall, transports::http::{Client, Http}
+    contract::Interface, dyn_abi::DynSolValue, json_abi::JsonAbi, network::{Ethereum, EthereumWallet}, primitives::{ Address, Bytes, U256 }, providers::{
+        fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller}, Identity, Provider, ProviderBuilder, RootProvider
+    }, signers::local::PrivateKeySigner, sol, transports::http::{Client, Http}
 };
 use eyre::Result;
 use crate::const_types::ChainName;
@@ -28,16 +25,34 @@ sol!(
 );
 
 #[derive(Default)]
-struct Network {
-    id: u32,
+pub struct Network {
+    id: i32,
     lz_id: String,
     rpc_url: String,
     explorer: String,
     multicall: String,
 }
 
+impl Network {
+    pub fn new(
+        id: i32,
+        lz_id: String,
+        rpc_url: String,
+        explorer: String,
+        multicall: String,
+    ) -> Self {
+        Network {
+            id,
+            lz_id,
+            rpc_url,
+            explorer,
+            multicall,
+        }
+    }
+}
+
 #[derive(Debug)]
-struct Balance {
+pub struct Balance {
     token_address: String,
     balance: U256,
 }
@@ -95,8 +110,18 @@ impl Web3Client {
             .on_http(rpc_url))
     }
 
-    pub async fn call_balance(&self, wallet_address: String, tokens: Vec<String>) -> Result<Vec<Balance>> {
-        let provider: MyFiller = self.get_provider().expect("Failed to get provider");
+    pub async fn get_user_balance(provider: MyFiller, wallet_address: Address, token_address: Option<String>) -> Result<U256> {
+        if let Some(token) = token_address {
+            let erc20 = ERC20::new(token.parse()?, provider.clone());
+            let ERC20::balanceOfReturn { balance } = erc20.balanceOf(wallet_address).call().await?;
+            Ok(balance)
+        } else {
+            Ok(provider.get_balance(wallet_address).await?)
+        }
+    }
+
+    pub async fn call_balance(&self, wallet_address: Address, tokens: Vec<String>) -> Result<Vec<Balance>> {
+        let provider: MyFiller = self.get_provider()?;
         let multicall = Multicall::new(self.network.multicall.parse()?, provider.clone());
         let max_retries = 2;
         let mut balances: Vec<Balance> = vec![];
@@ -106,7 +131,7 @@ impl Web3Client {
             let token_address = token.parse::<Address>()?;
             if token.to_lowercase() == "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".to_owned().to_lowercase() {
                 let call_data = Bytes::copy_from_slice(&self.multicall_interface.encode_input("getEthBalance", &[
-                    DynSolValue::Address(wallet_address.parse()?)
+                    DynSolValue::Address(wallet_address)
                 ])?);
                 calls.push(Multicall::Call {
                     target: token_address,
@@ -114,7 +139,7 @@ impl Web3Client {
                 });
             } else {
                 let call_data = Bytes::copy_from_slice(&self.erc20_interface.encode_input("balanceOf", &[
-                    DynSolValue::Address(wallet_address.parse()?)
+                    DynSolValue::Address(wallet_address)
                 ])?);
                 calls.push(Multicall::Call {
                     target: token_address,
@@ -149,10 +174,12 @@ impl Web3Client {
                                 continue;
                             }
                         };
-                        balances.push(Balance {
-                            token_address: tokens[index].clone(),
-                            balance,
-                        });
+                        if balance > U256::from(0) {
+                            balances.push(Balance {
+                                token_address: tokens[index].clone(),
+                                balance,
+                            });
+                        }
                     }
                     break;
                 }
@@ -191,5 +218,20 @@ async fn test_call_balance() {
         explorer: "https://etherscan.io/tx/".to_owned(),
         multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".to_owned(),
     });
-    web3_client.call_balance("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".to_owned(), vec!["0x6FF2241756549B5816A177659E766EAf14B34429".to_owned()]).await;
+    let _ = web3_client.call_balance("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".parse().unwrap(), vec!["0x6FF2241756549B5816A177659E766EAf14B34429".to_owned()]).await;
+}
+
+#[tokio::test]
+async fn test_get_balance() {
+    let mut web3_client = Web3Client::new("Ethereum", None).unwrap();
+    web3_client.set_network_rpc(Network {
+        id: 1,
+        lz_id: "101".to_owned(),
+        rpc_url: "https://ethereum.publicnode.com".to_owned(),
+        explorer: "https://etherscan.io/tx/".to_owned(),
+        multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".to_owned(),
+    });
+    let provider: MyFiller = web3_client.get_provider().unwrap();
+    let balance = Web3Client::get_user_balance(provider, "0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".parse().unwrap(), None).await.unwrap();
+    println!("{:?}", balance);
 }

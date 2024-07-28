@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use alloy::{primitives::Address, signers::local::PrivateKeySigner};
+use web3_client::Balance;
 use std::fs;
-use serde_json::Value;
+use serde_json::{to_string_pretty, Value};
 use eyre::Result;
 use reqwest::Url;
+use std::io::Write;
 
 mod web3_client;
 mod const_types;
@@ -82,7 +84,15 @@ impl GarbageCollector {
         Ok(v)
     }
 
+    fn write_to_json_file(filename: &str, data: &HashMap<String, Vec<Balance>>) -> Result<()> {
+        let json = to_string_pretty(&data)?;
+        let mut file = fs::File::create(filename)?;
+        file.write_all(json.as_bytes())?;
+        Ok(())
+    }
+
     pub async fn get_non_zero_tokens(&mut self) -> Result<()> {
+        let mut results: HashMap<String, Vec<Balance>> = HashMap::new();
         for (k, _) in self.chain_data.as_object().unwrap() {
             let token_list_result = GarbageCollector::fetch_tokens(k.to_string());
 
@@ -102,15 +112,23 @@ impl GarbageCollector {
             }).collect();
             self.token_lists.insert(k.to_string(), converted_token_list);
             let res = self.get_non_zero_tokens_for_chain(k, Some("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".to_owned())).await;
-            if res.is_err() {
-                println!("Error getting non-zero tokens for chain {}", k);
-                continue;
+            let balance_list = match res {
+                Ok(b_l) => b_l,
+                Err(e) => {
+                    println!("Error getting balance list: {:?}", e);
+                    continue;
+                }
+            };
+            if balance_list.len() > 0 {
+                results.insert(k.to_string(), balance_list);
             }
         }
+        let filename = "results/nonzero_tokens.json";
+        Self::write_to_json_file(filename, &results)?;
         Ok(())
     }
 
-    async fn get_non_zero_tokens_for_chain(&self, network_name: &String, target_wallet_: Option<String>) -> Result<()> {
+    async fn get_non_zero_tokens_for_chain(&self, network_name: &String, target_wallet_: Option<String>) -> Result<Vec<Balance>> {
         println!("Getting non-zero tokens for chain {}", network_name);
         let mut web3_client = web3_client::Web3Client::new(network_name, Some(self.signer.clone())).unwrap();
         let target_wallet = match target_wallet_ {
@@ -133,8 +151,7 @@ impl GarbageCollector {
                 return Err(eyre::eyre!("Error getting balance list"));
             }
         };
-        println!("Balance on chain {network_name}: {balance_list:?}");
-        Ok(())
+        Ok(balance_list)
     }
 }
 

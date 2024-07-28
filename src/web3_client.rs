@@ -7,6 +7,7 @@ use alloy::{
 };
 use eyre::Result;
 use reqwest::Url;
+use serde::{Serialize, Deserialize};
 use crate::const_types::ChainName;
 
 type MyFiller = FillProvider<JoinFill<JoinFill<JoinFill<JoinFill<Identity, GasFiller>, NonceFiller>, ChainIdFiller>, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
@@ -63,7 +64,7 @@ impl Network {
     }
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct Balance {
     token_address: Address,
     balance: U256,

@@ -169,15 +169,18 @@ impl Web3Client {
                     };
                     for (index, balance_data) in returnData.iter().enumerate() {
                         if !balance_data.success {
-                            println!("Failed to get balance for token: {}", tokens[index]);
                             continue;
                         }
-                        let balance = match U256::try_from_be_slice(&balance_data.returnData) {
+
+                        // Multicall could return more bytes then needed for U256
+                        let value = if balance_data.returnData.len() > 66 {
+                            &balance_data.returnData[0..66]
+                        } else {
+                            &balance_data.returnData
+                        };
+                        let balance = match U256::try_from_be_slice(value) {
                             Some(b) => b,
-                            None => {
-                                println!("Failed to convert balance data to U256 for token: {}", tokens[index]);
-                                continue;
-                            }
+                            None => continue,
                         };
                         if balance > U256::from(0) {
                             balances.push(Balance {
@@ -215,7 +218,7 @@ fn test_encode_function_data() {
 #[tokio::test]
 async fn test_call_balance() {
     let signer = PrivateKeySigner::random();
-    let mut web3_client = Web3Client::new(
+    let web3_client = Web3Client::new(
         Network {
             id: 1,
             lz_id: "101".to_owned(),
@@ -232,7 +235,7 @@ async fn test_call_balance() {
 #[tokio::test]
 async fn test_get_balance() {
     let signer = PrivateKeySigner::random();
-    let mut web3_client = Web3Client::new(
+    let web3_client = Web3Client::new(
         Network {
             id: 1,
             lz_id: "101".to_owned(),

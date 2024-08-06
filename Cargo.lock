@@ -1479,6 +1479,7 @@ dependencies = [
  "alloy",
  "criterion",
  "eyre",
+ "rayon",
  "reqwest",
  "serde",
  "serde_json",

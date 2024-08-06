@@ -6,6 +6,7 @@ use serde_json::{to_string_pretty, Value};
 use eyre::Result;
 use reqwest::Url;
 use std::io::Write;
+use rayon::prelude::*;
 
 mod web3_client;
 mod const_types;
@@ -44,7 +45,7 @@ impl Default for GarbageCollector {
 
 impl GarbageCollector {
     pub fn new() -> Self {
-        let chain_data = GarbageCollector::parse_json_chains().unwrap();
+        let chain_data = GarbageCollector::parse_json_data("data/chains.json".to_owned()).unwrap();
         GarbageCollector {
             chain_data,
             ..Default::default()
@@ -69,17 +70,8 @@ impl GarbageCollector {
         Ok(())
     }
 
-    // Parse JSON file with chain data
-    fn parse_json_chains() -> Result<Value> {
-        let file_path = "data/chains.json".to_owned();
-        let contents = fs::read_to_string(file_path).expect("Couldn't find or load that file.");
-        let v: Value = serde_json::from_str(&contents)?;
-        Ok(v)
-    }
-
-    fn fetch_tokens(network_name: &String) -> Result<Value> {
-        let file_path = format!("data/token_lists/{}.json", network_name);
-        // Dont panic if file is not found
+    // Parse JSON file
+    fn parse_json_data(file_path: String) -> Result<Value> {
         let contents = fs::read_to_string(file_path)?;
         let v: Value = serde_json::from_str(&contents)?;
         Ok(v)
@@ -98,7 +90,7 @@ impl GarbageCollector {
     pub async fn get_non_zero_tokens(&mut self) -> Result<()> {
         let mut results: HashMap<String, Vec<Balance>> = HashMap::new();
         for (k, _) in self.chain_data.as_object().unwrap() {
-            let token_list_result = GarbageCollector::fetch_tokens(k);
+            let token_list_result = GarbageCollector::parse_json_data(format!("data/token_lists/{}.json", k));
             let token_list = match token_list_result {
                 Ok(t_l) =>t_l,
                 Err(_) => continue,
@@ -121,7 +113,7 @@ impl GarbageCollector {
                     continue;
                 }
             };
-            if balance_list.len() > 0 {
+            if !balance_list.is_empty() {
                 results.insert(k.to_string(), balance_list);
             }
         }
@@ -165,7 +157,7 @@ impl GarbageCollector {
 
 #[test]
 fn test_json_parser() {
-    let result = GarbageCollector::parse_json_chains();
+    let result = GarbageCollector::parse_json_data("data/chains.json".to_owned());
     assert_eq!(result.is_ok(), true);
 }
 

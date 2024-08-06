@@ -135,7 +135,7 @@
     "id": 56,
     "lzId": "102",
     "rpc": [
-      "https://rpc.ankr.com/bsc"
+      "https://bsc.meowrpc.com"
     ],
     "explorer": "https://bscscan.com/tx/",
     "currency": "BNB",

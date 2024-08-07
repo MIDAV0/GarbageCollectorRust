@@ -1,12 +1,14 @@
 use std::collections::HashMap;
-use alloy::{primitives::{Address, utils::format_ether}, signers::local::PrivateKeySigner};
+use alloy::{primitives::{utils::format_ether, Address, U256}, signers::local::PrivateKeySigner};
 use web3_client::Balance;
 use std::fs;
 use serde_json::{to_string_pretty, Value};
 use eyre::Result;
 use reqwest::Url;
 use std::io::Write;
-use rayon::prelude::*;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio::task;
 
 mod web3_client;
 mod const_types;
@@ -88,60 +90,79 @@ impl GarbageCollector {
     }
 
     pub async fn get_non_zero_tokens(&mut self) -> Result<()> {
-        let mut results: HashMap<String, Vec<Balance>> = HashMap::new();
-        for (k, _) in self.chain_data.as_object().unwrap() {
-            let token_list_result = GarbageCollector::parse_json_data(format!("data/token_lists/{}.json", k));
-            let token_list = match token_list_result {
-                Ok(t_l) =>t_l,
-                Err(_) => continue,
-            };
 
-            let token_addresses: Vec<Address> = token_list.as_array().unwrap().iter().map(|token| {
-                token["address"].as_str().unwrap().parse::<Address>().unwrap_or(Address::ZERO)
-            }).collect();
+        let results = Arc::new(Mutex::new(HashMap::<String, Vec<Balance>>::new()));
+        let mut handles = vec![];
+        let c_d = {
+            let cloned_chain_data = self.chain_data.clone();
+            cloned_chain_data.as_object().unwrap().clone()
+        };
 
-            let res = self.get_non_zero_tokens_for_chain(
-                k,
-                Some("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".to_owned()),
-                token_addresses
-            ).await;
-            
-            let balance_list = match res {
-                Ok(b_l) => b_l,
-                Err(e) => {
-                    println!("Error getting balance list: {:?}", e);
-                    continue;
+        for (k, _) in c_d {
+            let results_clone = Arc::clone(&results);
+            let network = web3_client::Network::new( 
+                self.chain_data[&k]["id"].as_i64().unwrap() as i32,
+                self.chain_data[&k]["lz_id"].to_string(),
+                Url::parse(self.chain_data[&k]["rpc"][0].as_str().unwrap()).unwrap(),
+                self.chain_data[&k]["explorer"].to_string(),
+                self.chain_data[&k]["multicall"].as_str().unwrap().parse::<Address>().unwrap_or(Address::ZERO),
+            );
+            let current_signer = self.signer.clone();
+            let handle = task::spawn(async move {
+                let token_list_result = GarbageCollector::parse_json_data(format!("data/token_lists/{}.json", k));
+                let token_list = match token_list_result {
+                    Ok(t_l) =>t_l,
+                    Err(_) => return,
+                };
+    
+                let token_addresses: Vec<Address> = token_list.as_array().unwrap().iter().map(|token| {
+                    token["address"].as_str().unwrap().parse::<Address>().unwrap_or(Address::ZERO)
+                }).collect();
+    
+                let res = GarbageCollector::get_non_zero_tokens_for_chain(
+                    network,
+                    Some("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".to_owned()),
+                    token_addresses,
+                    current_signer,
+                ).await;
+                
+                let balance_list = match res {
+                    Ok(b_l) => b_l,
+                    Err(e) => {
+                        println!("Error getting balance list: {:?}", e);
+                        return;
+                    }
+                };
+                if !balance_list.is_empty() {
+                    let mut results = results_clone.lock().await;
+                    results.insert(k.to_string(), balance_list);
                 }
-            };
-            if !balance_list.is_empty() {
-                results.insert(k.to_string(), balance_list);
-            }
+            });
+            handles.push(handle);
         }
-        Self::write_to_json_file("nonzero_tokens.json", &results)?;
+
+        for handle in handles {
+            handle.await.unwrap();
+        }
+
+        let final_result = results.lock().await;
+
+        Self::write_to_json_file("nonzero_tokens.json", &final_result)?;
         Ok(())
     }
 
     async fn get_non_zero_tokens_for_chain(
-        &self,
-        network_name: &String,
+        network: web3_client::Network,
         target_wallet_: Option<String>,
-        token_addresses: Vec<Address>
+        token_addresses: Vec<Address>,
+        signer: PrivateKeySigner,
     ) -> Result<Vec<Balance>> {
-        println!("Getting non-zero tokens for chain {}", network_name);
-        let network = web3_client::Network::new( 
-            self.chain_data[network_name]["id"].as_i64().unwrap() as i32,
-            self.chain_data[network_name]["lz_id"].to_string(),
-            Url::parse(self.chain_data[network_name]["rpc"][0].as_str().unwrap()).unwrap(),
-            self.chain_data[network_name]["explorer"].to_string(),
-            self.chain_data[network_name]["multicall"].as_str().unwrap().parse::<Address>().unwrap_or(Address::ZERO),
-        );
-
-        let web3_client = web3_client::Web3Client::new(network, self.signer.clone()).unwrap();
-
         let target_wallet = match target_wallet_ {
             Some(t_w) => t_w.parse::<Address>().unwrap(),
-            None => self.signer.address(),
+            None => signer.address(),
         };
+
+        let web3_client = web3_client::Web3Client::new(network, signer).unwrap();
         
         let balance_list =  match web3_client.call_balance(target_wallet, token_addresses).await {
             Ok(b_l) => b_l,

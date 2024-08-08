@@ -40,14 +40,18 @@ impl Network {
         rpc_url: Vec<Url>,
         explorer: String,
         multicall: Address,
-    ) -> Self {
-        Network {
+    ) -> Result<Self> {
+        if rpc_url.is_empty() {
+            return Err(eyre::eyre!("RPC URL is required"));
+        }
+
+        Ok(Network {
             id,
             lz_id,
             rpc_url,
             explorer,
             multicall,
-        }
+        })
     }
 }
 

@@ -100,13 +100,19 @@ impl GarbageCollector {
 
         for (k, _) in c_d {
             let results_clone = Arc::clone(&results);
-            let network = web3_client::Network::new( 
+            let network = match web3_client::Network::new( 
                 self.chain_data[&k]["id"].as_i64().unwrap() as i32,
                 self.chain_data[&k]["lz_id"].to_string(),
                 self.chain_data[&k]["rpc"].as_array().unwrap().iter().map(|rpc| Url::parse(rpc.as_str().unwrap()).unwrap()).collect(),
                 self.chain_data[&k]["explorer"].to_string(),
                 self.chain_data[&k]["multicall"].as_str().unwrap().parse::<Address>().unwrap_or(Address::ZERO),
-            );
+            ) {
+                Ok(n) => n,
+                Err(e) => {
+                    println!("Error creating network {} : {:?}", k, e);
+                    continue;
+                }
+            };
             let current_signer = self.signer.clone();
             let handle = task::spawn(async move {
                 let token_list_result = GarbageCollector::parse_json_data(format!("data/token_lists/{}.json", k));

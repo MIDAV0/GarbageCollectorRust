@@ -28,28 +28,16 @@ sol!(
 pub struct Network {
     id: i32,
     lz_id: String,
-    rpc_url: Url,
+    rpc_url: Vec<Url>,
     explorer: String,
     multicall: Address,
-}
-
-impl Default for Network {
-    fn default() -> Self {
-        Network {
-            id: 0,
-            lz_id: "".to_owned(),
-            rpc_url: Url::parse("https://ethereum.publicnode.com").unwrap(),
-            explorer: "".to_owned(),
-            multicall: Address::ZERO,
-        }
-    }
 }
 
 impl Network {
     pub fn new(
         id: i32,
         lz_id: String,
-        rpc_url: Url,
+        rpc_url: Vec<Url>,
         explorer: String,
         multicall: Address,
     ) -> Self {
@@ -70,7 +58,7 @@ pub struct Balance {
 }
 
 pub struct Web3Client {
-    provider: MyFiller,
+    signer: PrivateKeySigner,
     network: Network,
     multicall_interface: Interface,
     erc20_interface: Interface,
@@ -95,16 +83,10 @@ impl Web3Client {
             Interface::new(abi)
         };
 
-        let wallet = EthereumWallet::from(signer);
-        let provider = ProviderBuilder::new()
-            .with_recommended_fillers()
-            .wallet(wallet)
-            .on_http(network.rpc_url.clone());
-
         Ok(
             Web3Client {
+                signer,
                 network,
-                provider,
                 multicall_interface,
                 erc20_interface,
             }
@@ -116,18 +98,31 @@ impl Web3Client {
         tokio::time::sleep(duration).await;
     }
 
+    fn get_provider(&self, retry_count: usize) -> MyFiller {
+        let wallet = EthereumWallet::from(self.signer.clone());
+        // Get the rpc url index based on the retry count using modulo operator
+        let index = retry_count % self.network.rpc_url.len();
+        let rpc_url = self.network.rpc_url[index].clone();
+        ProviderBuilder::new()
+            .with_recommended_fillers()
+            .wallet(wallet)
+            .on_http(rpc_url)
+    }
+
     pub async fn get_user_balance(&self, wallet_address: Address, token_address: Option<String>) -> Result<U256> {
+        let provider = self.get_provider(0);
         if let Some(token) = token_address {
-            let erc20 = ERC20::new(token.parse()?, self.provider.clone());
+            let erc20 = ERC20::new(token.parse()?, provider);
             let ERC20::balanceOfReturn { balance } = erc20.balanceOf(wallet_address).call().await?;
             Ok(balance)
         } else {
-            Ok(self.provider.get_balance(wallet_address).await?)
+            Ok(provider.get_balance(wallet_address).await?)
         }
     }
 
     pub async fn call_balance(&self, wallet_address: Address, tokens: Vec<Address>) -> Result<Vec<Balance>> {
-        let multicall = Multicall::new(self.network.multicall, self.provider.clone());
+        let provider = self.get_provider(0);
+        let mut multicall = Multicall::new(self.network.multicall, provider);
         let max_retries = 2;
         let mut balances: Vec<Balance> = vec![];
         let mut calls: Vec<Multicall::Call> = vec![];
@@ -163,7 +158,12 @@ impl Web3Client {
                         Err(e) => {
                             println!("Error: {:?}", e);
                             retry_count += 1;
-                            Self::sleep(time::Duration::from_millis(5000)).await;
+                            if self.network.rpc_url.len() == 1 {
+                                Self::sleep(time::Duration::from_millis(3000)).await;
+                            } else {
+                                let new_provider = self.get_provider(retry_count);
+                                multicall = Multicall::new(self.network.multicall, new_provider);
+                            }
                             continue;
                         }
                     };
@@ -222,7 +222,7 @@ async fn test_call_balance() {
         Network {
             id: 1,
             lz_id: "101".to_owned(),
-            rpc_url: "https://ethereum.publicnode.com".parse::<Url>().unwrap(),
+            rpc_url: vec!["https://ethereum.publicnode.com".parse::<Url>().unwrap()],
             explorer: "https://etherscan.io/tx/".to_owned(),
             multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap(),
         },
@@ -239,7 +239,7 @@ async fn test_get_balance() {
         Network {
             id: 1,
             lz_id: "101".to_owned(),
-            rpc_url: "https://ethereum.publicnode.com".parse::<Url>().unwrap(),
+            rpc_url: vec!["https://ethereum.publicnode.com".parse::<Url>().unwrap()],
             explorer: "https://etherscan.io/tx/".to_owned(),
             multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap(),
         },

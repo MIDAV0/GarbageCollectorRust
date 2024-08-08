@@ -103,7 +103,7 @@ impl GarbageCollector {
             let network = web3_client::Network::new( 
                 self.chain_data[&k]["id"].as_i64().unwrap() as i32,
                 self.chain_data[&k]["lz_id"].to_string(),
-                Url::parse(self.chain_data[&k]["rpc"][0].as_str().unwrap()).unwrap(),
+                self.chain_data[&k]["rpc"].as_array().unwrap().iter().map(|rpc| Url::parse(rpc.as_str().unwrap()).unwrap()).collect(),
                 self.chain_data[&k]["explorer"].to_string(),
                 self.chain_data[&k]["multicall"].as_str().unwrap().parse::<Address>().unwrap_or(Address::ZERO),
             );

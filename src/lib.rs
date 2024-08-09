@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use alloy::{primitives::{utils::format_ether, Address, U256}, signers::local::PrivateKeySigner};
+use alloy::{dyn_abi::abi::token, primitives::{utils::format_ether, Address, U256}, signers::local::PrivateKeySigner};
+use const_types::ChainName;
 use web3_client::Balance;
 use std::fs;
 use serde_json::{to_string_pretty, Value};
@@ -79,14 +80,37 @@ impl GarbageCollector {
         Ok(v)
     }
 
-    fn write_to_json_file(filename: &str, data: &HashMap<String, Vec<Balance>>) -> Result<()> {
+    fn write_to_json_file<T: serde::Serialize>(filename: String, dir_to_create: &str, data: &T) -> Result<()> {
+        let data_string = to_string_pretty(data)?;
         // Create results directory if it doesn't exist
-        fs::create_dir_all("results")?;
-        let filename = format!("results/{}", filename);
-        let json = to_string_pretty(&data)?;
+        fs::create_dir_all(dir_to_create)?;
         let mut file = fs::File::create(filename)?;
-        file.write_all(json.as_bytes())?;
+        file.write_all(data_string.as_bytes())?;
         Ok(())
+    }
+
+    async fn fetch_token_data(chain_name: &String) -> Result<Value> {
+        let url = format!("https://tokens.coingecko.com/{}/all.json", const_types::convert_network_name_to_coingecko_query_string(ChainName::from(chain_name.as_str())));
+        let url = Url::parse(&url)?;
+        let res = reqwest::get(url).await?;
+        let json: Value = res.json().await?;
+        let token_data = &json["tokens"];
+        if token_data.is_null() {
+            return Err(eyre::eyre!("Token data is null"));
+        }
+        Self::write_to_json_file(format!("data/token_lists/{}.json", chain_name), "data/token_lists", token_data)?;
+        fs::create_dir_all("data/token_lists")?;
+        Ok(json)
+    }
+
+    async fn get_token_data(chain_name: &String) -> Result<Value> {
+        match Self::parse_json_data(format!("data/token_lists/{}.json", chain_name)) {
+            Ok(v) => Ok(v),
+            Err(_) => {
+                println!("Fetching token data from Coingecko API");
+                Self::fetch_token_data(chain_name).await
+            }
+        }
     }
 
     pub async fn get_non_zero_tokens(&mut self) -> Result<()> {
@@ -115,7 +139,7 @@ impl GarbageCollector {
             };
             let current_signer = self.signer.clone();
             let handle = task::spawn(async move {
-                let token_list_result = GarbageCollector::parse_json_data(format!("data/token_lists/{}.json", k));
+                let token_list_result = Self::get_token_data(&k).await;
                 let token_list = match token_list_result {
                     Ok(t_l) =>t_l,
                     Err(_) => return,
@@ -153,7 +177,7 @@ impl GarbageCollector {
 
         let final_result = results.lock().await;
 
-        Self::write_to_json_file("nonzero_tokens.json", &final_result)?;
+        Self::write_to_json_file("results/nonzero_tokens.json".to_owned(), "results", &*final_result)?;
         Ok(())
     }
 
@@ -198,4 +222,12 @@ fn test_read_non_zero_balances() {
 async fn test_get_non_zero_tokens() {
     let mut garbage_collector = GarbageCollector::new();
     let _ = garbage_collector.get_non_zero_tokens().await.unwrap();
+}
+
+#[tokio::test]
+async fn test_token_fetch() -> Result<()> {
+    let tn = "Manta".to_owned();
+    let d = GarbageCollector::get_token_data(&tn).await?;
+    println!("{:?}", d);
+    Ok(())
 }

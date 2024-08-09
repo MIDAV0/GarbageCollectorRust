@@ -49,3 +49,28 @@ impl From<&str> for ChainName {
         }
     }
 }
+
+pub fn convert_network_name_to_coingecko_query_string(chain_name: ChainName) -> String {
+    match chain_name {
+        ChainName::Ethereum => "ethereum".to_owned(),
+        ChainName::Arbitrum => "arbitrum-one".to_owned(),
+        ChainName::Optimism => "optimistic-ethereum".to_owned(),
+        ChainName::Base => "base".to_owned(),
+        ChainName::Linea => "linea".to_owned(),
+        ChainName::Zksync => "zksync".to_owned(),
+        ChainName::Bsc => "binance-smart-chain".to_owned(),
+        ChainName::Opbnb => "opbnb".to_owned(),
+        ChainName::Polygon => "polygon-pos".to_owned(),
+        ChainName::Avalanche => "avalanche".to_owned(),
+        ChainName::Scroll => "scroll".to_owned(),
+        ChainName::Blast => "blast".to_owned(),
+        ChainName::Mantle => "mantle".to_owned(),
+        ChainName::Gnosis => "xdai".to_owned(),
+        ChainName::Fantom => "fantom".to_owned(),
+        ChainName::Celo => "celo".to_owned(),
+        ChainName::Core => "core".to_owned(),
+        ChainName::Manta => "".to_owned(),
+        ChainName::Taiko => "".to_owned(),
+        ChainName::Nova => "arbitrum-nova".to_owned(),
+    }
+}

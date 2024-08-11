@@ -103,6 +103,49 @@ impl GarbageCollector {
         Ok(json)
     }
 
+    async fn get_token_prices(chain_name: &str, token_addresses: Vec<Address>) -> Result<Value> {
+        let chain = match chain_name {
+            "Zksync" => "era".to_owned(),
+            "Nova" => "arbitrum_nova".to_owned(),
+            v => v.to_owned(),
+        };
+
+        let mut url = "https://coins.llama.fi/prices/current/".to_owned();
+        token_addresses.iter().enumerate().for_each(|(i, token_address)| {
+            let token_address = token_address.to_string();
+            url.push_str(
+                format!(
+                    "{}:{}{}",
+                    chain,
+                    token_address,
+                    if i + 1 == token_addresses.len() { "" } else { "," },
+                ).as_str()
+            );
+        });
+
+        let url = Url::parse(&url)?;
+        let res = reqwest::get(url).await?;
+        let json: Value = res.json().await?;
+        let coins = &json["coins"];
+        if coins.is_null() {
+            return Err(eyre::eyre!("Coins data is null"));
+        }
+
+        // {
+        //     "coins": {
+        //       "ethereum:0x6ff2241756549b5816a177659e766eaf14b34429": {
+        //         "decimals": 18,
+        //         "price": 0.00240279962047993,
+        //         "symbol": "AQTIS",
+        //         "timestamp": 1723410561,
+        //         "confidence": 0.98
+        //       }
+        //     }
+        //   }
+
+        Ok(Value::Null)
+    }
+
     async fn get_token_data(chain_name: &String) -> Result<Value> {
         match Self::parse_json_data(format!("data/token_lists/{}.json", chain_name)) {
             Ok(v) => Ok(v),
@@ -113,23 +156,23 @@ impl GarbageCollector {
         }
     }
 
-    pub async fn get_non_zero_tokens(&mut self) -> Result<()> {
+    pub async fn get_non_zero_tokens(&self) -> Result<()> {
 
         let results = Arc::new(Mutex::new(HashMap::<String, Vec<Balance>>::new()));
         let mut handles = vec![];
-        let c_d = {
+        let chain_data = {
             let cloned_chain_data = self.chain_data.clone();
             cloned_chain_data.as_object().unwrap().clone()
         };
 
-        for (k, _) in c_d {
+        for (k, v) in chain_data {
             let results_clone = Arc::clone(&results);
             let network = match web3_client::Network::new( 
-                self.chain_data[&k]["id"].as_i64().unwrap() as i32,
-                self.chain_data[&k]["lz_id"].to_string(),
-                self.chain_data[&k]["rpc"].as_array().unwrap().iter().map(|rpc| Url::parse(rpc.as_str().unwrap()).unwrap()).collect(),
-                self.chain_data[&k]["explorer"].to_string(),
-                self.chain_data[&k]["multicall"].as_str().unwrap().parse::<Address>().unwrap_or(Address::ZERO),
+                v["id"].as_i64().unwrap() as i32,
+                v["lz_id"].to_string(),
+                v["rpc"].as_array().unwrap().iter().map(|rpc| Url::parse(rpc.as_str().unwrap()).unwrap()).collect(),
+                v["explorer"].to_string(),
+                v["multicall"].as_str().unwrap().parse::<Address>().unwrap_or(Address::ZERO),
             ) {
                 Ok(n) => n,
                 Err(e) => {

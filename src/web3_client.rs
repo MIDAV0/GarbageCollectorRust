@@ -55,10 +55,30 @@ impl Network {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct Balance {
     pub token_address: Address,
     pub balance: U256,
+    pub token_symbol: String,
+    pub token_price: f64,
+}
+
+impl Balance {
+    pub fn new(token_address: Address, balance: U256) -> Self {
+        Balance {
+            token_address,
+            balance,
+            ..Default::default()
+        }
+    }
+
+    pub fn set_token_symbol(&mut self, symbol: String) {
+        self.token_symbol = symbol;
+    }
+
+    pub fn set_token_price(&mut self, price: f64) {
+        self.token_price = price;
+    }
 }
 
 pub struct Web3Client {
@@ -171,7 +191,7 @@ impl Web3Client {
                             continue;
                         }
                     };
-                    for (index, balance_data) in returnData.iter().enumerate() {
+                    for (i, balance_data) in returnData.iter().enumerate() {
                         if !balance_data.success {
                             continue;
                         }
@@ -187,10 +207,12 @@ impl Web3Client {
                             None => continue,
                         };
                         if balance > U256::from(0) {
-                            balances.push(Balance {
-                                token_address: tokens[index],
-                                balance,
-                            });
+                            let current_index = if index + 1 >= batch_size {
+                                (index + 1) - batch_size + i
+                            } else {
+                                i
+                            };
+                            balances.push(Balance::new(tokens[current_index], balance));
                         }
                     }
                     break;

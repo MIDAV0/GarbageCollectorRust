@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use alloy::{dyn_abi::abi::token, primitives::{utils::format_ether, Address, U256}, signers::local::PrivateKeySigner};
+use alloy::{dyn_abi::abi::token, primitives::{utils::format_ether, Address, U256}, signers::local::PrivateKeySigner, uint};
 use const_types::ChainName;
 use web3_client::Balance;
 use std::fs;
@@ -103,7 +103,7 @@ impl GarbageCollector {
         Ok(json)
     }
 
-    async fn get_token_prices(chain_name: &str, token_addresses: Vec<Address>) -> Result<Value> {
+    async fn get_token_prices(chain_name: &str, mut token_balances: &Vec<Balance>) -> Result<Value> {
         let chain = match chain_name {
             "Zksync" => "era".to_owned(),
             "Nova" => "arbitrum_nova".to_owned(),
@@ -111,14 +111,14 @@ impl GarbageCollector {
         };
 
         let mut url = "https://coins.llama.fi/prices/current/".to_owned();
-        token_addresses.iter().enumerate().for_each(|(i, token_address)| {
-            let token_address = token_address.to_string();
+        token_balances.iter().enumerate().for_each(|(i, token_balance)| {
+            let token_address = token_balance.token_address;
             url.push_str(
                 format!(
                     "{}:{}{}",
                     chain,
                     token_address,
-                    if i + 1 == token_addresses.len() { "" } else { "," },
+                    if i + 1 == token_balances.len() { "" } else { "," },
                 ).as_str()
             );
         });
@@ -129,6 +129,14 @@ impl GarbageCollector {
         let coins = &json["coins"];
         if coins.is_null() {
             return Err(eyre::eyre!("Coins data is null"));
+        }
+
+        for (k, v) in coins.as_object().unwrap() {
+            let price = v["price"].as_f64().unwrap();
+            let symbol = v["symbol"].as_str().unwrap();
+            let confidence = v["confidence"].as_f64().unwrap();
+            let timestamp = v["timestamp"].as_i64().unwrap();
+            println!("Token: {}, Price: {}, Symbol: {}, Confidence: {}, Timestamp: {}", k, price, symbol, confidence, timestamp);
         }
 
         // {
@@ -273,4 +281,11 @@ async fn test_token_fetch() -> Result<()> {
     let d = GarbageCollector::get_token_data(&tn).await?;
     println!("{:?}", d);
     Ok(())
+}
+
+#[test]
+fn parse_token() {
+    let balance = uint!(0x18d192fd096b80bbdd8_U256);
+    let converted = format_ether(balance);
+    println!("{}", converted);
 }

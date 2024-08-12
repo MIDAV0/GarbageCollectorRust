@@ -61,6 +61,7 @@ pub struct Balance {
     pub balance: U256,
     pub token_symbol: String,
     pub token_price: f64,
+    pub decimals: u8,
 }
 
 impl Balance {
@@ -72,12 +73,16 @@ impl Balance {
         }
     }
 
+    pub fn set_token_price(&mut self, price: f64) {
+        self.token_price = price;
+    }
+
     pub fn set_token_symbol(&mut self, symbol: String) {
         self.token_symbol = symbol;
     }
 
-    pub fn set_token_price(&mut self, price: f64) {
-        self.token_price = price;
+    pub fn set_decimals(&mut self, decimals: u8) {
+        self.decimals = decimals;
     }
 }
 

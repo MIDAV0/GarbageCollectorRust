@@ -103,7 +103,7 @@ impl GarbageCollector {
         Ok(json)
     }
 
-    async fn get_token_prices(chain_name: &str, mut token_balances: &Vec<Balance>) -> Result<Value> {
+    async fn get_token_prices(chain_name: &str, token_balances: &mut Vec<Balance>) -> Result<()> {
         let chain = match chain_name {
             "Zksync" => "era".to_owned(),
             "Nova" => "arbitrum_nova".to_owned(),
@@ -132,26 +132,14 @@ impl GarbageCollector {
         }
 
         for (k, v) in coins.as_object().unwrap() {
-            let price = v["price"].as_f64().unwrap();
-            let symbol = v["symbol"].as_str().unwrap();
-            let confidence = v["confidence"].as_f64().unwrap();
-            let timestamp = v["timestamp"].as_i64().unwrap();
-            println!("Token: {}, Price: {}, Symbol: {}, Confidence: {}, Timestamp: {}", k, price, symbol, confidence, timestamp);
+            let token_balance = token_balances.iter_mut().find(|t_b| t_b.token_address == k.parse::<Address>().unwrap());
+            if let Some(t_b) = token_balance {
+                t_b.set_token_price(v["price"].as_f64().unwrap());
+                t_b.set_token_symbol(v["symbol"].as_str().unwrap().to_owned());
+                t_b.set_decimals(v["decimals"].as_u64().unwrap() as u8);
+            }
         }
-
-        // {
-        //     "coins": {
-        //       "ethereum:0x6ff2241756549b5816a177659e766eaf14b34429": {
-        //         "decimals": 18,
-        //         "price": 0.00240279962047993,
-        //         "symbol": "AQTIS",
-        //         "timestamp": 1723410561,
-        //         "confidence": 0.98
-        //       }
-        //     }
-        //   }
-
-        Ok(Value::Null)
+        Ok(())
     }
 
     async fn get_token_data(chain_name: &String) -> Result<Value> {

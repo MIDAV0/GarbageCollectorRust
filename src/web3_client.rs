@@ -197,7 +197,7 @@ impl Web3Client {
                         }
                     };
                     for (i, balance_data) in returnData.iter().enumerate() {
-                        if !balance_data.success {
+                        if !balance_data.success || &balance_data.returnData[..] == b"0x" {
                             continue;
                         }
 
@@ -211,13 +211,9 @@ impl Web3Client {
                             Some(b) => b,
                             None => continue,
                         };
+ 
                         if balance > U256::from(0) {
-                            let current_index = if index + 1 >= batch_size {
-                                (index + 1) - batch_size + i
-                            } else {
-                                i
-                            };
-                            balances.push(Balance::new(tokens[current_index], balance));
+                            balances.push(Balance::new(calls[i].target, balance));
                         }
                     }
                     break;

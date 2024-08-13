@@ -132,7 +132,11 @@ impl GarbageCollector {
         }
 
         for (k, v) in coins.as_object().unwrap() {
-            let token_balance = token_balances.iter_mut().find(|t_b| t_b.token_address == k.parse::<Address>().unwrap());
+            let token_address: Address = {
+                let temp: Vec<&str> = k.split(":").collect();
+                temp[1].parse::<Address>().unwrap()
+            };
+            let token_balance = token_balances.iter_mut().find(|t_b| t_b.token_address == token_address);
             if let Some(t_b) = token_balance {
                 t_b.set_token_price(v["price"].as_f64().unwrap());
                 t_b.set_token_symbol(v["symbol"].as_str().unwrap().to_owned());
@@ -195,7 +199,7 @@ impl GarbageCollector {
                     current_signer,
                 ).await;
                 
-                let balance_list = match res {
+                let mut balance_list = match res {
                     Ok(b_l) => b_l,
                     Err(e) => {
                         println!("Error getting balance list: {:?}", e);
@@ -203,6 +207,7 @@ impl GarbageCollector {
                     }
                 };
                 if !balance_list.is_empty() {
+                    GarbageCollector::get_token_prices(&k, &mut balance_list).await.unwrap();
                     let mut results = results_clone.lock().await;
                     results.insert(k.to_string(), balance_list);
                 }
@@ -271,9 +276,14 @@ async fn test_token_fetch() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn parse_token() {
-    let balance = uint!(0x18d192fd096b80bbdd8_U256);
-    let converted = format_ether(balance);
-    println!("{}", converted);
+#[tokio::test]
+async fn test_get_token_prices() {
+    let mut token_balances = vec![
+        Balance::new("0x6ff2241756549b5816a177659e766eaf14b34429".parse::<Address>().unwrap(), U256::from(10000)),
+        Balance::new("0xc82e3db60a52cf7529253b4ec688f631aad9e7c2".parse::<Address>().unwrap(), U256::from(10000)),
+    ];
+    let _ = GarbageCollector::get_token_prices("ethereum", &mut token_balances).await.unwrap();
+    for token_balance in token_balances.iter() {
+        println!("Token: {}, Price: {}", token_balance.token_symbol, token_balance.token_price);
+    }
 }

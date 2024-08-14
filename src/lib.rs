@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use alloy::{dyn_abi::abi::token, primitives::{utils::format_ether, Address, U256}, signers::local::PrivateKeySigner, uint};
+use alloy::{primitives::{utils::format_units, Address}, signers::local::PrivateKeySigner};
 use const_types::ChainName;
 use web3_client::Balance;
 use std::fs;
@@ -15,12 +15,10 @@ mod web3_client;
 mod const_types;
 
 struct TokenData {
-    chain_id: u32,
     address: Address,
     name: String,
     symbol: String,
     decimals: u8,
-    logo_uri: String,
 }
 
 // struct NonzeroTokenData {
@@ -60,18 +58,34 @@ impl GarbageCollector {
         self.signer = signer_;
     }
 
-    pub fn read_non_zero_balances(&self) -> Result<()> {
+    pub fn read_non_zero_balances() -> Result<()> {
         let file_path = "results/nonzero_tokens.json".to_owned();
         let contents = fs::read_to_string(file_path)?;
         let v: HashMap<String, Vec<Balance>> = serde_json::from_str(&contents)?;
-        for (k, v) in v.iter() {
-            println!("Chain: {}", k);
-            for balance in v.iter() {
-                println!("Token: {}, Balance: {}", balance.token_address, format_ether(balance.balance));
-            }
-        }
+        Self::output_report(&v);
         Ok(())
     }
+
+    fn output_report(balances: &HashMap<String, Vec<Balance>>) {
+        let mut total_balance: f64 = 0.0;
+        for (k, v) in balances.iter() {
+            println!("Chain: {}", k);
+            let mut total_balance_for_chain: f64 = 0.0;
+            for balance in v.iter() {
+                if let Ok(converted_balance) = format_units(balance.balance, balance.decimals) {
+                    let value = converted_balance.parse::<f64>().unwrap() * balance.token_price;
+                    total_balance_for_chain += value;
+                    println!("Token: {}, Balance: {}, Value: {}", balance.token_symbol, converted_balance, value);
+                } else {
+                    println!("Token: {}, Balance: Failed to format balance", balance.token_symbol);
+                }
+            }
+            total_balance += total_balance_for_chain;
+            println!("Total balance for chain: {}", total_balance_for_chain);
+            println!("---------------------------------\n");
+        }
+        println!("Total balance: {}", total_balance);
+    } 
 
     // Parse JSON file
     fn parse_json_data(file_path: String) -> Result<Value> {
@@ -139,8 +153,6 @@ impl GarbageCollector {
             let token_balance = token_balances.iter_mut().find(|t_b| t_b.token_address == token_address);
             if let Some(t_b) = token_balance {
                 t_b.set_token_price(v["price"].as_f64().unwrap());
-                t_b.set_token_symbol(v["symbol"].as_str().unwrap().to_owned());
-                t_b.set_decimals(v["decimals"].as_u64().unwrap() as u8);
             }
         }
         Ok(())
@@ -188,14 +200,19 @@ impl GarbageCollector {
                     Err(_) => return,
                 };
     
-                let token_addresses: Vec<Address> = token_list.as_array().unwrap().iter().map(|token| {
-                    token["address"].as_str().unwrap().parse::<Address>().unwrap_or(Address::ZERO)
+                let token_datas: Vec<TokenData> = token_list.as_array().unwrap().iter().map(|token| {
+                    TokenData {
+                        address: token["address"].as_str().unwrap().parse::<Address>().unwrap_or(Address::ZERO),
+                        name: token["name"].as_str().unwrap().to_owned(),
+                        symbol: token["symbol"].as_str().unwrap().to_owned(),
+                        decimals: token["decimals"].as_u64().unwrap() as u8,
+                    }
                 }).collect();
     
                 let res = GarbageCollector::get_non_zero_tokens_for_chain(
                     network,
                     Some("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".to_owned()),
-                    token_addresses,
+                    token_datas,
                     current_signer,
                 ).await;
                 
@@ -220,7 +237,8 @@ impl GarbageCollector {
         }
 
         let final_result = results.lock().await;
-
+        // Output report
+        Self::output_report(&final_result);
         Self::write_to_json_file("results/nonzero_tokens.json".to_owned(), "results", &*final_result)?;
         Ok(())
     }
@@ -228,7 +246,7 @@ impl GarbageCollector {
     async fn get_non_zero_tokens_for_chain(
         network: web3_client::Network,
         target_wallet_: Option<String>,
-        token_addresses: Vec<Address>,
+        token_datas: Vec<TokenData>,
         signer: PrivateKeySigner,
     ) -> Result<Vec<Balance>> {
         let target_wallet = match target_wallet_ {
@@ -238,7 +256,7 @@ impl GarbageCollector {
 
         let web3_client = web3_client::Web3Client::new(network, signer).unwrap();
         
-        let balance_list =  match web3_client.call_balance(target_wallet, token_addresses).await {
+        let balance_list =  match web3_client.call_balance(target_wallet, token_datas).await {
             Ok(b_l) => b_l,
             Err(e) => {
                 println!("Error getting balance list: {:?}", e);
@@ -258,8 +276,7 @@ fn test_json_parser() {
 
 #[test]
 fn test_read_non_zero_balances() {
-    let garbage_collector = GarbageCollector::new();
-    let _ = garbage_collector.read_non_zero_balances().unwrap();
+    let _ = GarbageCollector::read_non_zero_balances().unwrap();
 }
 
 #[tokio::test]
@@ -274,16 +291,4 @@ async fn test_token_fetch() -> Result<()> {
     let d = GarbageCollector::get_token_data(&tn).await?;
     println!("{:?}", d);
     Ok(())
-}
-
-#[tokio::test]
-async fn test_get_token_prices() {
-    let mut token_balances = vec![
-        Balance::new("0x6ff2241756549b5816a177659e766eaf14b34429".parse::<Address>().unwrap(), U256::from(10000)),
-        Balance::new("0xc82e3db60a52cf7529253b4ec688f631aad9e7c2".parse::<Address>().unwrap(), U256::from(10000)),
-    ];
-    let _ = GarbageCollector::get_token_prices("ethereum", &mut token_balances).await.unwrap();
-    for token_balance in token_balances.iter() {
-        println!("Token: {}, Price: {}", token_balance.token_symbol, token_balance.token_price);
-    }
 }

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use alloy::{primitives::{utils::format_units, Address}, signers::local::PrivateKeySigner};
+use alloy::{primitives::{utils::format_units, Address, U256}, signers::local::PrivateKeySigner};
 use const_types::ChainName;
 use web3_client::Balance;
 use std::fs;
@@ -117,7 +117,7 @@ impl GarbageCollector {
         Ok(json)
     }
 
-    async fn get_token_prices(chain_name: &str, token_balances: &mut Vec<Balance>) -> Result<()> {
+    async fn get_token_prices(chain_name: &str, token_balances: &mut [Balance]) -> Result<()> {
         let chain = match chain_name {
             "Zksync" => "era".to_owned(),
             "Nova" => "arbitrum_nova".to_owned(),
@@ -147,12 +147,15 @@ impl GarbageCollector {
 
         for (k, v) in coins.as_object().unwrap() {
             let token_address: Address = {
-                let temp: Vec<&str> = k.split(":").collect();
+                let temp: Vec<&str> = k.split(':').collect();
                 temp[1].parse::<Address>().unwrap()
             };
             let token_balance = token_balances.iter_mut().find(|t_b| t_b.token_address == token_address);
             if let Some(t_b) = token_balance {
                 t_b.set_token_price(v["price"].as_f64().unwrap());
+                if t_b.token_address == "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".parse::<Address>().unwrap() {
+                    t_b.token_symbol = format!("NATIVE ({})", v["symbol"].as_str().unwrap());
+                }
             }
         }
         Ok(())
@@ -200,7 +203,7 @@ impl GarbageCollector {
                     Err(_) => return,
                 };
     
-                let token_datas: Vec<TokenData> = token_list.as_array().unwrap().iter().map(|token| {
+                let mut token_datas: Vec<TokenData> = token_list.as_array().unwrap().iter().map(|token| {
                     TokenData {
                         address: token["address"].as_str().unwrap().parse::<Address>().unwrap_or(Address::ZERO),
                         name: token["name"].as_str().unwrap().to_owned(),
@@ -208,6 +211,14 @@ impl GarbageCollector {
                         decimals: token["decimals"].as_u64().unwrap() as u8,
                     }
                 }).collect();
+
+                // Add native token
+                token_datas.push(TokenData {
+                    address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".parse::<Address>().unwrap(),
+                    name: "NATIVE (ETH)".to_owned(),
+                    symbol: "NATIVE (ETH)".to_owned(),
+                    decimals: 18,
+                });
     
                 let res = GarbageCollector::get_non_zero_tokens_for_chain(
                     network,
@@ -290,5 +301,20 @@ async fn test_token_fetch() -> Result<()> {
     let tn = "Manta".to_owned();
     let d = GarbageCollector::get_token_data(&tn).await?;
     println!("{:?}", d);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_get_native_token_price() -> Result<()> {
+    let mut balance = Balance::new(
+        "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".parse::<Address>().unwrap(),
+        "NATIVE (ETH)".to_owned(),
+        "NATIVE (ETH)".to_owned(),
+        18,
+        U256::from(1000000000),
+    );
+    let mut balances = vec![balance];
+    let _ = GarbageCollector::get_token_prices("Ethereum", &mut balances).await?;
+    println!("{:?}", balances[0].token_price);
     Ok(())
 }

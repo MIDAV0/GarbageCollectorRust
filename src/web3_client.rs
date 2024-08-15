@@ -1,7 +1,7 @@
 use std::{fs,time};
 
 use alloy::{
-    contract::Interface, dyn_abi::{abi::token, DynSolValue}, json_abi::JsonAbi, network::{Ethereum, EthereumWallet}, primitives::{ Address, Bytes, U256 }, providers::{
+    contract::Interface, dyn_abi::DynSolValue, json_abi::JsonAbi, network::{Ethereum, EthereumWallet}, primitives::{ Address, Bytes, U256 }, providers::{
         fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller}, Identity, Provider, ProviderBuilder, RootProvider
     }, signers::local::PrivateKeySigner, sol, transports::http::{Client, Http}
 };
@@ -88,6 +88,10 @@ impl Balance {
     pub fn set_token_price(&mut self, price: f64) {
         self.token_price = price;
     }
+
+    pub fn set_token_symbol(&mut self, symbol: String) {
+        self.token_symbol = symbol;
+    }
 }
 
 pub struct Web3Client {
@@ -162,12 +166,12 @@ impl Web3Client {
         let mut token_buffer: Vec<&TokenData> = vec![];
         let batch_size = 500;
         for (index, token) in tokens.iter().enumerate() {
-            if token.address == Address::ZERO {
+            if token.address == "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".parse::<Address>().unwrap() {
                 let call_data = Bytes::copy_from_slice(&self.multicall_interface.encode_input("getEthBalance", &[
                     DynSolValue::Address(wallet_address)
                 ])?);
                 calls.push(Multicall::Call {
-                    target: token.address,
+                    target: self.network.multicall,
                     callData: call_data,
                 });
                 token_buffer.push(token);
@@ -221,7 +225,7 @@ impl Web3Client {
                         if balance > U256::from(0) {
                             balances.push(
                                 Balance::new(
-                                    calls[i].target,
+                                    token_buffer[i].address,
                                     token_buffer[i].name.clone(),
                                     token_buffer[i].symbol.clone(),
                                     token_buffer[i].decimals,

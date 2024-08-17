@@ -6133,14 +6133,6 @@
     },
     {
         "chainId": 137,
-        "address": "0x0000000000000000000000000000000000001010",
-        "name": "Polygon",
-        "symbol": "MATIC",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/4713/thumb/polygon.png?1698233745"
-    },
-    {
-        "chainId": 137,
         "address": "0x7fbc10850cae055b27039af31bd258430e714c62",
         "name": "Unibright",
         "symbol": "UBT",

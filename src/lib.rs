@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use alloy::{primitives::{utils::format_units, Address, U256}, signers::local::PrivateKeySigner};
 use const_types::ChainName;
-use web3_client::Balance;
+use web3_client::{Balance, Network};
 use std::fs;
 use serde_json::{to_string_pretty, Value};
 use eyre::Result;
@@ -171,13 +171,18 @@ impl GarbageCollector {
         }
     }
 
-    pub async fn get_non_zero_tokens(&self) -> Result<()> {
+    pub async fn get_non_zero_tokens(&self, target_address_: Option<String>) -> Result<()> {
 
         let results = Arc::new(Mutex::new(HashMap::<String, Vec<Balance>>::new()));
         let mut handles = vec![];
         let chain_data = {
             let cloned_chain_data = self.chain_data.clone();
             cloned_chain_data.as_object().unwrap().clone()
+        };
+
+        let target_address = match &target_address_ {
+            Some(t_a) => t_a.parse::<Address>().unwrap(),
+            None => self.signer.address(),
         };
 
         for (k, v) in chain_data {
@@ -215,14 +220,14 @@ impl GarbageCollector {
                 // Add native token
                 token_datas.push(TokenData {
                     address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".parse::<Address>().unwrap(),
-                    name: "NATIVE (ETH)".to_owned(),
-                    symbol: "NATIVE (ETH)".to_owned(),
+                    name: v["currency"].as_str().unwrap().to_owned(),
+                    symbol: v["currency"].as_str().unwrap().to_owned(),
                     decimals: 18,
                 });
     
                 let res = GarbageCollector::get_non_zero_tokens_for_chain(
                     network,
-                    Some("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".to_owned()),
+                    target_address,
                     token_datas,
                     current_signer,
                 ).await;
@@ -250,20 +255,16 @@ impl GarbageCollector {
         let final_result = results.lock().await;
         // Output report
         Self::output_report(&final_result);
-        Self::write_to_json_file("results/nonzero_tokens.json".to_owned(), "results", &*final_result)?;
+        Self::write_to_json_file(format!("results/tokens_{}.json", target_address), "results", &*final_result)?;
         Ok(())
     }
 
     async fn get_non_zero_tokens_for_chain(
-        network: web3_client::Network,
-        target_wallet_: Option<String>,
+        network: Network,
+        target_wallet: Address,
         token_datas: Vec<TokenData>,
         signer: PrivateKeySigner,
     ) -> Result<Vec<Balance>> {
-        let target_wallet = match target_wallet_ {
-            Some(t_w) => t_w.parse::<Address>().unwrap(),
-            None => signer.address(),
-        };
 
         let web3_client = web3_client::Web3Client::new(network, signer).unwrap();
         
@@ -275,6 +276,16 @@ impl GarbageCollector {
             }
         };
         Ok(balance_list)
+    }
+
+    async fn swap_tokens_to_native_for_chain(
+        network: Network,
+        token_balances: &Vec<Balance>
+    ) -> Result<()> {
+        // Shuffle tokens option
+        
+
+        Ok(())
     }
 }
 
@@ -293,7 +304,7 @@ fn test_read_non_zero_balances() {
 #[tokio::test]
 async fn test_get_non_zero_tokens() {
     let mut garbage_collector = GarbageCollector::new();
-    let _ = garbage_collector.get_non_zero_tokens().await.unwrap();
+    let _ = garbage_collector.get_non_zero_tokens(Some("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".to_owned())).await.unwrap();
 }
 
 #[tokio::test]

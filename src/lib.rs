@@ -10,9 +10,11 @@ use std::io::Write;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task;
+use odos_aggregator::OdosAggregator;
 
 mod web3_client;
 mod const_types;
+mod odos_aggregator;
 
 struct TokenData {
     address: Address,
@@ -153,9 +155,6 @@ impl GarbageCollector {
             let token_balance = token_balances.iter_mut().find(|t_b| t_b.token_address == token_address);
             if let Some(t_b) = token_balance {
                 t_b.set_token_price(v["price"].as_f64().unwrap());
-                if t_b.token_address == "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".parse::<Address>().unwrap() {
-                    t_b.token_symbol = format!("NATIVE ({})", v["symbol"].as_str().unwrap());
-                }
             }
         }
         Ok(())
@@ -188,8 +187,8 @@ impl GarbageCollector {
         for (k, v) in chain_data {
             let results_clone = Arc::clone(&results);
             let network = match web3_client::Network::new( 
-                v["id"].as_i64().unwrap() as i32,
-                v["lz_id"].to_string(),
+                v["id"].as_u64().unwrap() as u32,
+                k.clone(),
                 v["rpc"].as_array().unwrap().iter().map(|rpc| Url::parse(rpc.as_str().unwrap()).unwrap()).collect(),
                 v["explorer"].to_string(),
                 v["multicall"].as_str().unwrap().parse::<Address>().unwrap_or(Address::ZERO),
@@ -283,7 +282,13 @@ impl GarbageCollector {
         token_balances: &Vec<Balance>
     ) -> Result<()> {
         // Shuffle tokens option
-        
+        // let native_token_data: Balance = Balance::new(
+        //     "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".parse::<Address>().unwrap(),
+            
+        //     "NATIVE (ETH)".to_owned(),
+        //     18,
+        //     U256::from(0),
+        // );
 
         Ok(())
     }

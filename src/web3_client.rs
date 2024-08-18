@@ -28,17 +28,17 @@ sol!(
 );
 
 pub struct Network {
-    id: i32,
-    lz_id: String,
-    rpc_url: Vec<Url>,
-    explorer: String,
-    multicall: Address,
+    pub id: u32,
+    pub chain_name: String,
+    pub rpc_url: Vec<Url>,
+    pub explorer: String,
+    pub multicall: Address,
 }
 
 impl Network {
     pub fn new(
-        id: i32,
-        lz_id: String,
+        id: u32,
+        chain_name: String,
         rpc_url: Vec<Url>,
         explorer: String,
         multicall: Address,
@@ -49,7 +49,7 @@ impl Network {
 
         Ok(Network {
             id,
-            lz_id,
+            chain_name,
             rpc_url,
             explorer,
             multicall,
@@ -267,7 +267,7 @@ async fn test_get_balance() {
     let web3_client = Web3Client::new(
         Network {
             id: 1,
-            lz_id: "101".to_owned(),
+            chain_name: "Ethereum".to_owned(),
             rpc_url: vec!["https://ethereum.publicnode.com".parse::<Url>().unwrap()],
             explorer: "https://etherscan.io/tx/".to_owned(),
             multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap(),

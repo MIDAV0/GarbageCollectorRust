@@ -88,10 +88,6 @@ impl Balance {
     pub fn set_token_price(&mut self, price: f64) {
         self.token_price = price;
     }
-
-    pub fn set_token_symbol(&mut self, symbol: String) {
-        self.token_symbol = symbol;
-    }
 }
 
 pub struct Web3Client {
@@ -222,7 +218,7 @@ impl Web3Client {
                             None => continue,
                         };
  
-                        if balance > U256::from(0) {
+                        if !balance.is_zero() {
                             balances.push(
                                 Balance::new(
                                     token_buffer[i].address,

@@ -60,9 +60,12 @@ impl GarbageCollector {
         self.signer = signer_;
     }
 
-    pub fn read_non_zero_balances() -> Result<()> {
-        let file_path = "results/nonzero_tokens.json".to_owned();
-        let contents = fs::read_to_string(file_path)?;
+    pub fn read_non_zero_balances(target_address: String) -> Result<()> {
+        let file_path = format!("results/tokens_{}.json", target_address.to_lowercase());
+        let contents = match fs::read_to_string(file_path) {
+            Ok(c) => c,
+            Err(_) => return Err(eyre::eyre!("Failed to read file")),
+        };
         let v: HashMap<String, Vec<Balance>> = serde_json::from_str(&contents)?;
         Self::output_report(&v);
         Ok(())
@@ -303,12 +306,12 @@ fn test_json_parser() {
 
 #[test]
 fn test_read_non_zero_balances() {
-    let _ = GarbageCollector::read_non_zero_balances().unwrap();
+    let _ = GarbageCollector::read_non_zero_balances("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".to_owned()).unwrap();
 }
 
 #[tokio::test]
 async fn test_get_non_zero_tokens() {
-    let mut garbage_collector = GarbageCollector::new();
+    let garbage_collector = GarbageCollector::new();
     let _ = garbage_collector.get_non_zero_tokens(Some("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".to_owned())).await.unwrap();
 }
 
@@ -322,7 +325,7 @@ async fn test_token_fetch() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_native_token_price() -> Result<()> {
-    let mut balance = Balance::new(
+    let balance = Balance::new(
         "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".parse::<Address>().unwrap(),
         "NATIVE (ETH)".to_owned(),
         "NATIVE (ETH)".to_owned(),

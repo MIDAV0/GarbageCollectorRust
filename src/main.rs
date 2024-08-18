@@ -39,7 +39,7 @@ async fn main() -> Result<()> {
                 panic!("No addresses found in the file");
             }
 
-            let mut garbage_collector = GarbageCollector::new();
+            let garbage_collector = GarbageCollector::new();
             for address in addresses_vec {
                 garbage_collector.get_non_zero_tokens(Some(address.to_owned())).await?;
             }

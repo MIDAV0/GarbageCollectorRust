@@ -1,4 +1,4 @@
-use alloy::{primitives::{Address, U256, utils::format_units},signers::local::PrivateKeySigner};
+use alloy::{primitives::{Address, U256},signers::local::PrivateKeySigner};
 use serde_json::Value;
 use crate::web3_client::Network;
 use crate::TokenData;
@@ -41,9 +41,33 @@ struct OdosQuotePayload {
     chain_id: u32,
     input_tokens: Vec<PayloadTokenIn>,
     output_tokens: Vec<PayloadTokenOut>,
+    user_addr: Address,
+    slippage_limit_percent: f64,
+    path_viz: bool,
+    rederral_code: u8,
+    simple: bool,
 }
 
+#[derive(Deserialize, Debug)]
+#[serde(rename_all="camelCase")]
 struct OdosQuoteType {
+    block_number: u64,
+    data_gas_estimate: u64,
+    gas_estimate: f64,
+    gas_estimate_value: f64,
+    gwei_per_gas: f64,
+    in_amounts: Vec<String>,
+    in_tokens: Vec<String>,
+    in_values: Vec<f64>,
+    net_out_value: f64,
+    out_amounts: Vec<String>,
+    out_tokens: Vec<String>,
+    out_values: Vec<f64>,
+    partner_fee_percent: f64,
+    path_id: String,
+    path_viz: Option<String>,
+    percent_diff: f64,
+    price_impact: f64,
 }
 
 pub struct OdosAggregator {
@@ -73,17 +97,18 @@ impl OdosAggregator {
         &self,
         token_in: TokenData,
         token_out: TokenData,
-        amountIn: U256,
+        amount_in: U256,
     ) -> Result<bool> {
-
+        let quote = self.get_quote(&token_in, &token_out, amount_in).await?;
+        self.execute_swap(&token_in, &token_out, quote).await?;
         Ok(true)
     }
 
     async fn get_quote(
         &self,
-        token_in: TokenData,
-        token_out: TokenData,
-        amountIn: U256
+        token_in: &TokenData,
+        token_out: &TokenData,
+        amount_in: U256
     ) -> Result<OdosQuoteType> {
         if !SUPPORTED_NETWORKS.contains(&self.network.chain_name.as_str()) {
             return Err(eyre::eyre!(format!("Network {} not supported by Odos", self.network.chain_name)));
@@ -101,21 +126,17 @@ impl OdosAggregator {
                 } else {
                     token_in.address
                 },
-                amount: "189000000".to_owned(),
-                // match format_units(amountIn, token_in.decimals) {
-                //     Ok(amount) => amount,
-                //     Err(_) => return Err(eyre::eyre!("Failed to format amount")),
-                // }
+                amount: amount_in.to_string(),
             }],
             output_tokens: vec![PayloadTokenOut {
                 token_address: token_out.address,
                 proportion: 1,
             }],
-            // user_addr: self.signer.address(),
-            // slippage_limit_percent: 0.3,
-            // path_viz: false,
-            // rederral_code: 1,
-            // simple: true,
+            user_addr: self.signer.address(),
+            slippage_limit_percent: 3.0,
+            path_viz: false,
+            rederral_code: 1,
+            simple: true,
         };
 
         let client = reqwest::Client::new();
@@ -124,16 +145,30 @@ impl OdosAggregator {
             .json(&payload)
             .send()
             .await?;
+        if res.status() != 200 {
+            return Err(eyre::eyre!("Failed to get quote"));
+        }
         let json: Value = res.json().await?;
-        println!("{:?}", json);
+        let quote = serde_json::from_value::<OdosQuoteType>(json);
+        match quote {
+            Ok(q) => Ok(q),
+            Err(e) => Err(eyre::eyre!(e)),
+        }
+    }
 
-        Ok(OdosQuoteType {})
+    async fn execute_swap(
+        &self,
+        token_in: &TokenData,
+        token_out: &TokenData,
+        quote: OdosQuoteType,
+    ) -> Result<()> {
+        Ok(())
     }
 
     fn is_token_native(token_address: &Address) -> bool {
-        return *token_address == Address::ZERO ||
+        *token_address == Address::ZERO ||
             *token_address == "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".parse::<Address>().unwrap() ||
-            *token_address == "0x0000000000000000000000000000000000001010".parse::<Address>().unwrap();
+            *token_address == "0x0000000000000000000000000000000000001010".parse::<Address>().unwrap()
     }
 }
 
@@ -161,5 +196,13 @@ async fn test_get_quote() {
         decimals: 18,
     };
     let amount_in = U256::from(1000000000000000_i64);
-    odos_aggregator.get_quote(token_in, token_out, amount_in).await.unwrap();
+    odos_aggregator.get_quote(&token_in, &token_out, amount_in).await.unwrap();
+}
+
+#[test]
+fn test_bigint() {
+    // Convert 0xd14c4827a2cd7a62 to U256
+    let value = U256::from(0xd14c4827a2cd7a62_u64);
+    let d = value.to_string();
+    println!("{:?}", d);
 }

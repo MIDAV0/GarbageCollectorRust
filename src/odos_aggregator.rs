@@ -162,6 +162,23 @@ impl OdosAggregator {
         token_out: &TokenData,
         quote: OdosQuoteType,
     ) -> Result<()> {
+        let url_str = format!("https://api.odos.xyz/info/contract-info/v2/{}", self.network.id);
+        let url = Url::parse(&url_str)?;
+        let client = reqwest::Client::new();
+        let res = client.get(url)
+            .header("Content-Type", "application/json")
+            .send()
+            .await?;
+        if res.status() != 200 {
+            return Err(eyre::eyre!("OdosAggregator:executeSwap Failed to get contract info"));
+        }
+        let json: Value = res.json().await?;
+        let router_address = match json["routerAddress"].as_str() {
+            Some(addr) => addr,
+            None => return Err(eyre::eyre!("OdosAggregator:executeSwap Could not get approval target")),
+        };
+
+
         Ok(())
     }
 

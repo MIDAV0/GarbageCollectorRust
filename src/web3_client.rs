@@ -1,9 +1,9 @@
 use std::{fs,time};
 
 use alloy::{
-    contract::Interface, dyn_abi::DynSolValue, json_abi::JsonAbi, network::{Ethereum, EthereumWallet}, primitives::{ Address, Bytes, U256 }, providers::{
+    contract::Interface, dyn_abi::DynSolValue, json_abi::JsonAbi, network::{Ethereum, EthereumWallet, TransactionBuilder}, primitives::{ Address, Bytes, U256 }, providers::{
         fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller}, Identity, Provider, ProviderBuilder, RootProvider
-    }, signers::local::PrivateKeySigner, sol, transports::http::{Client, Http}
+    }, rpc::types::TransactionRequest, signers::local::PrivateKeySigner, sol, transports::http::{Client, Http}
 };
 use eyre::Result;
 use reqwest::Url;
@@ -55,6 +55,11 @@ impl Network {
             multicall,
         })
     }
+}
+
+struct GasMultiplier {
+    price: f64,
+    limit: f64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -140,6 +145,57 @@ impl Web3Client {
             .with_recommended_fillers()
             .wallet(wallet)
             .on_http(rpc_url)
+    }
+
+    pub async fn approve(
+        &self,
+        token_address: Address,
+        to: Address,
+        amount: U256,
+        _min_allowance: Option<U256>,
+    ) -> Result<bool> {
+        let provider = self.get_provider(0);
+        let erc20 = ERC20::new(token_address, provider);
+
+        if let Some(min_allowance) = _min_allowance {
+            let ERC20::allowanceReturn { _0 } = erc20.allowance(self.signer.address(), to).call().await?;
+            // Print allowance data
+
+            if _0 >= min_allowance {
+                return Ok(true);
+            }
+        }
+
+        let call_data = Bytes::copy_from_slice(&self.erc20_interface.encode_input("approve", &[
+            DynSolValue::Address(to),
+            DynSolValue::Uint(amount, 256),
+        ])?);
+        let tx = TransactionRequest::default()
+            .with_from(self.signer.address())
+            .with_to(token_address)
+            .with_input(call_data);
+
+        let _ = self.send_tx(tx, None, true).await?;
+        
+        Ok(true)
+    }
+
+    async fn send_tx(
+        &self,
+        tx_body: TransactionRequest,
+        _gas_multipliers: Option<GasMultiplier>,
+        wait_confirmation: bool,
+    ) -> Result<bool> {
+        let gas_multipliers = _gas_multipliers.unwrap_or(GasMultiplier {
+            price: 1.0,
+            limit: 1.0,
+        });
+
+        let provider = self.get_provider(0);
+        let gas = provider.estimate_gas(&tx_body).await?;
+        println!("Gas limit: {}", gas);
+
+        Ok(true)
     }
 
     pub async fn get_user_balance(&self, wallet_address: Address, token_address: Option<String>) -> Result<U256> {
@@ -272,4 +328,27 @@ async fn test_get_balance() {
     ).unwrap();
     let balance = web3_client.get_user_balance("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".parse().unwrap(), None).await.unwrap();
     println!("{:?}", balance);
+}
+
+#[tokio::test]
+async fn test_approve() {
+    let signer: PrivateKeySigner = "PK".parse().expect("should parse private key");
+    println!("{:?}", signer.address());
+    let web3_client = Web3Client::new(
+        Network {
+            id: 1,
+            chain_name: "Ethereum".to_owned(),
+            rpc_url: vec!["https://ethereum.publicnode.com".parse::<Url>().unwrap()],
+            explorer: "https://etherscan.io/tx/".to_owned(),
+            multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap(),
+        },
+        signer,
+    ).unwrap();
+    let result = web3_client.approve(
+        "0x6ff2241756549b5816a177659e766eaf14b34429".parse().unwrap(),
+        "0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".parse().unwrap(),
+        U256::from(1000000000000000_i64),
+        None,
+    ).await.unwrap();
+    println!("{:?}", result);
 }

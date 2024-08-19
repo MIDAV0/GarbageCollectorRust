@@ -1,6 +1,38 @@
 use eyre::Result;
 use garbage_collector_rust::GarbageCollector;
 
+use serde::{Serialize, Deserialize};
+use std::path::Path;
+use std::{fs, io};
+
+#[derive(Serialize, Deserialize)]
+struct AppConfig {
+    debug: bool,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            debug: false,
+        }
+    }
+}
+
+fn load_or_initialize() -> Result<AppConfig> {
+    let config_path = Path::new("Config.toml");
+
+    if config_path.exists() {
+        let content = fs::read_to_string(config_path)?;
+        let config = toml::from_str(&content)?;
+        return Ok(config);
+    }
+
+    let config = AppConfig::default();
+    let toml = toml::to_string(&config).unwrap();
+    fs::write(config_path, toml)?;
+    Ok(config)
+}
+
 enum Scenario {
     BalanceCheckerPK,
     BalanceCheckerAddressess,
@@ -9,6 +41,14 @@ enum Scenario {
 #[tokio::main]
 async fn main() -> Result<()> {
     let scenario = Scenario::BalanceCheckerPK;
+
+    let config = match load_or_initialize() {
+        Ok(v) => v,
+        Err(err) => {
+            eprintln!("Error: {}", err);
+            return Err(err);
+        }
+    };
 
     match scenario {
         Scenario::BalanceCheckerPK => {

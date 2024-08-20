@@ -1,6 +1,6 @@
-use alloy::{primitives::{Address, U256},signers::local::PrivateKeySigner};
+use alloy::{primitives::{Address, U256, utils::parse_units},signers::local::PrivateKeySigner};
 use serde_json::Value;
-use crate::web3_client::Network;
+use crate::web3_client::{Network, Web3Client};
 use crate::TokenData;
 use eyre::Result;
 use serde::{Serialize, Deserialize};
@@ -178,6 +178,13 @@ impl OdosAggregator {
             None => return Err(eyre::eyre!("OdosAggregator:executeSwap Could not get approval target")),
         };
 
+        let web3_client = Web3Client::new(self.network.clone(), self.signer.clone())?;
+        let approve_hash = web3_client.approve(
+            token_in.address,
+            router_address.parse::<Address>().unwrap(),
+            parse_units(quote.in_amounts[0].as_str(), token_in.decimals).unwrap().into(),
+            Some(parse_units(quote.in_amounts[0].as_str(), token_in.decimals).unwrap().into())
+        ).await?;
 
         Ok(())
     }

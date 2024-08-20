@@ -1,9 +1,9 @@
 use std::{fs,time};
 
 use alloy::{
-    contract::Interface, dyn_abi::DynSolValue, json_abi::JsonAbi, network::{Ethereum, EthereumWallet, TransactionBuilder}, primitives::{ Address, Bytes, U256 }, providers::{
+    contract::Interface, dyn_abi::DynSolValue, json_abi::JsonAbi, network::{Ethereum, EthereumWallet, TransactionBuilder}, primitives::{ utils::parse_units, Address, Bytes, U256 }, providers::{
         fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller}, Identity, Provider, ProviderBuilder, RootProvider
-    }, rpc::types::TransactionRequest, signers::local::PrivateKeySigner, sol, transports::http::{Client, Http}
+    }, rpc::types::{TransactionReceipt, TransactionRequest}, signers::local::PrivateKeySigner, sol, transports::http::{Client, Http}
 };
 use eyre::Result;
 use reqwest::Url;
@@ -27,6 +27,7 @@ sol!(
     "src/utils/contract_abis/Multicall2.json"
 );
 
+#[derive(Clone)]
 pub struct Network {
     pub id: u32,
     pub chain_name: String,
@@ -58,8 +59,8 @@ impl Network {
 }
 
 struct GasMultiplier {
-    price: f64,
-    limit: f64,
+    price: f32,
+    limit: f32,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -153,7 +154,7 @@ impl Web3Client {
         to: Address,
         amount: U256,
         _min_allowance: Option<U256>,
-    ) -> Result<bool> {
+    ) -> Result<Option<TransactionReceipt>> {
         let provider = self.get_provider(0);
         let erc20 = ERC20::new(token_address, provider);
 
@@ -162,7 +163,7 @@ impl Web3Client {
             // Print allowance data
 
             if _0 >= min_allowance {
-                return Ok(true);
+                return Ok(None);
             }
         }
 
@@ -175,27 +176,53 @@ impl Web3Client {
             .with_to(token_address)
             .with_input(call_data);
 
-        let _ = self.send_tx(tx, None, true).await?;
+        let tx_hash = self.send_tx(tx, None).await?;
         
-        Ok(true)
+        Ok(Some(tx_hash))
     }
 
     async fn send_tx(
         &self,
-        tx_body: TransactionRequest,
+        mut tx_body: TransactionRequest,
         _gas_multipliers: Option<GasMultiplier>,
-        wait_confirmation: bool,
-    ) -> Result<bool> {
-        let gas_multipliers = _gas_multipliers.unwrap_or(GasMultiplier {
-            price: 1.0,
-            limit: 1.0,
-        });
-
+    ) -> Result<TransactionReceipt> {
         let provider = self.get_provider(0);
-        let gas = provider.estimate_gas(&tx_body).await?;
-        println!("Gas limit: {}", gas);
+        if let Some(gas_multipliers) = _gas_multipliers {
+            let gas_limit = self.estimate_tx_gas(&tx_body, Some(gas_multipliers.limit)).await?;
+            tx_body = tx_body.gas_limit(gas_limit);
 
-        Ok(true)
+            let gas_price = self.get_gas_price(Some(gas_multipliers.price)).await?;
+            tx_body = tx_body.max_fee_per_gas(gas_price);
+
+            let wallet = EthereumWallet::from(self.signer.clone());
+            let tx_envelope = tx_body.build(&wallet).await?;
+            let tx_receipt = provider.send_tx_envelope(tx_envelope).await?.get_receipt().await?;
+            Ok(tx_receipt)  
+        } else {
+            let tx_receipt = provider.send_transaction(tx_body).await?.get_receipt().await?;
+            Ok(tx_receipt)          
+        }
+    }
+
+    async fn estimate_tx_gas(
+        &self,
+        tx_body: &TransactionRequest,
+        _multiplier: Option<f32>,
+    ) -> Result<u128> {
+        let multiplier = _multiplier.unwrap_or(1.3);
+        let provider = self.get_provider(0);
+        let gas_estimate = provider.estimate_gas(tx_body).await?;
+        Ok((gas_estimate as f32 * multiplier) as u128)
+    }
+
+    async fn get_gas_price(
+        &self,
+        _multiplier: Option<f32>,
+    ) -> Result<u128> {
+        let multiplier = _multiplier.unwrap_or(1.3);
+        let provider = self.get_provider(0);
+        let gas_price = provider.get_gas_price().await?;
+        Ok((gas_price as f32 * multiplier) as u128)
     }
 
     pub async fn get_user_balance(&self, wallet_address: Address, token_address: Option<String>) -> Result<U256> {
@@ -332,7 +359,7 @@ async fn test_get_balance() {
 
 #[tokio::test]
 async fn test_approve() {
-    let signer: PrivateKeySigner = "PK".parse().expect("should parse private key");
+    let signer: PrivateKeySigner = "".parse().expect("should parse private key");
     println!("{:?}", signer.address());
     let web3_client = Web3Client::new(
         Network {

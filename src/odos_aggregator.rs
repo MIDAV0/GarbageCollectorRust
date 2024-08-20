@@ -1,6 +1,6 @@
-use alloy::{primitives::{Address, U256, utils::parse_units},signers::local::PrivateKeySigner};
+use alloy::{network::TransactionBuilder, primitives::{utils::parse_units, Address, U256}, rpc::types::TransactionRequest, signers::local::PrivateKeySigner};
 use serde_json::Value;
-use crate::web3_client::{Network, Web3Client};
+use crate::web3_client::{Network, Web3Client, GasMultiplier};
 use crate::TokenData;
 use eyre::Result;
 use serde::{Serialize, Deserialize};
@@ -48,7 +48,15 @@ struct OdosQuotePayload {
     simple: bool,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all(serialize = "camelCase"))]
+struct OdosAssemblePayload {
+    user_addr: Address,
+    path_id: String,
+    simulate: bool,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all="camelCase")]
 struct OdosQuoteType {
     block_number: u64,
@@ -68,6 +76,19 @@ struct OdosQuoteType {
     path_viz: Option<String>,
     percent_diff: f64,
     price_impact: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all="camelCase")]
+struct OdosAssembleType {
+    gas: Option<f64>,
+    gas_price: f64,
+    value: String,
+    to: Address,
+    from: Address,
+    data: String,
+    nonce: u64,
+    chain_id: u64,
 }
 
 pub struct OdosAggregator {
@@ -186,6 +207,41 @@ impl OdosAggregator {
             Some(parse_units(quote.in_amounts[0].as_str(), token_in.decimals).unwrap().into())
         ).await?;
 
+        let payload = OdosAssemblePayload {
+            user_addr: self.signer.address(),
+            path_id: quote.path_id,
+            simulate: true,
+        };
+
+        let client = reqwest::Client::new();
+        let res = client.post(self.assemble_url.clone())
+            .header("Content-Type", "application/json")
+            .json(&payload)
+            .send()
+            .await?;
+        if res.status() != 200 {
+            return Err(eyre::eyre!("OdosAggregator:executeSwap Failed to assempble swap"));
+        }
+        let json: Value = res.json().await?;
+        if !json["simulation"]["isSuccess"].as_bool().unwrap() {
+            return Err(eyre::eyre!("OdosAggregator:executeSwap Failed to simulate swap"));
+        };
+        let tx = match serde_json::from_value::<OdosAssembleType>(json["transaction"].clone()) {
+            Ok(q) => q,
+            Err(e) => return Err(eyre::eyre!(e)),
+        };
+
+        let adjusted_tx = TransactionRequest::default()
+            .with_from(tx.from)
+            .with_to(tx.to)
+            .with_nonce(tx.nonce)
+            .with_chain_id(tx.chain_id)
+            .with_value(parse_units("1.0", "wei")?.into());
+
+        let gas_price_multiplier: f32 = if self.network.chain_name == "Ethereum" || self.network.chain_name == "Polygon" || self.network.chain_name == "Avalanche" {1.1} else {1.0};
+
+        let _ = web3_client.send_tx(adjusted_tx, Some(GasMultiplier::new(gas_price_multiplier, 1.0))).await?;
+
         Ok(())
     }
 
@@ -224,9 +280,10 @@ async fn test_get_quote() {
 }
 
 #[test]
-fn test_bigint() {
+fn test_bigint() -> Result<()> {
     // Convert 0xd14c4827a2cd7a62 to U256
-    let value = U256::from(0xd14c4827a2cd7a62_u64);
-    let d = value.to_string();
-    println!("{:?}", d);
+    let value = parse_units("100000.0", "wei")?;
+    let num: U256 = value.into();
+    println!("Value: {}", num);
+    Ok(())
 }

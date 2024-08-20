@@ -1,7 +1,7 @@
 use std::{fs,time};
 
 use alloy::{
-    contract::Interface, dyn_abi::DynSolValue, json_abi::JsonAbi, network::{Ethereum, EthereumWallet, TransactionBuilder}, primitives::{ utils::parse_units, Address, Bytes, U256 }, providers::{
+    contract::Interface, dyn_abi::DynSolValue, json_abi::JsonAbi, network::{Ethereum, EthereumWallet, TransactionBuilder}, primitives::{Address, Bytes, U256}, providers::{
         fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller}, Identity, Provider, ProviderBuilder, RootProvider
     }, rpc::types::{TransactionReceipt, TransactionRequest}, signers::local::PrivateKeySigner, sol, transports::http::{Client, Http}
 };
@@ -58,9 +58,18 @@ impl Network {
     }
 }
 
-struct GasMultiplier {
+pub struct GasMultiplier {
     price: f32,
     limit: f32,
+}
+
+impl GasMultiplier {
+    pub fn new(price: f32, limit: f32) -> Self {
+        GasMultiplier {
+            price,
+            limit,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -181,7 +190,7 @@ impl Web3Client {
         Ok(Some(tx_hash))
     }
 
-    async fn send_tx(
+    pub async fn send_tx(
         &self,
         mut tx_body: TransactionRequest,
         _gas_multipliers: Option<GasMultiplier>,
@@ -189,10 +198,8 @@ impl Web3Client {
         let provider = self.get_provider(0);
         if let Some(gas_multipliers) = _gas_multipliers {
             let gas_limit = self.estimate_tx_gas(&tx_body, Some(gas_multipliers.limit)).await?;
-            tx_body = tx_body.gas_limit(gas_limit);
-
             let gas_price = self.get_gas_price(Some(gas_multipliers.price)).await?;
-            tx_body = tx_body.max_fee_per_gas(gas_price);
+            tx_body = tx_body.gas_limit(gas_limit).max_fee_per_gas(gas_price);
 
             let wallet = EthereumWallet::from(self.signer.clone());
             let tx_envelope = tx_body.build(&wallet).await?;

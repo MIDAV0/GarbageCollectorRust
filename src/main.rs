@@ -2,8 +2,7 @@ use eyre::Result;
 use garbage_collector_rust::GarbageCollector;
 
 use serde::{Serialize, Deserialize};
-use std::path::Path;
-use std::{fs, io};
+use std::{fs,path::Path};
 
 #[derive(Serialize, Deserialize)]
 struct AppConfig {

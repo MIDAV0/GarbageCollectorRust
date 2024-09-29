@@ -1,5 +1,5 @@
 use log::LevelFilter;
-use fern::colors::{Color, ColoredLevelConfig};
+use fern::{Dispatch, colors::{Color, ColoredLevelConfig}};
 use eyre::Result;
 use crate::constants::const_types::*;
 
@@ -14,7 +14,7 @@ pub fn setup_logger() -> Result<()> {
         ..ColoredLevelConfig::new()
     };
 
-    fern::Dispatch::new()
+    Dispatch::new()
         .format(move |out, message, record| {
             out.finish(format_args!(
                 "{}[{}] {}",
@@ -24,7 +24,7 @@ pub fn setup_logger() -> Result<()> {
             ))
         })
         .chain(std::io::stdout())
-        .level(log::LevelFilter::Error)
+        .level(log::LevelFilter::Debug)
         .level_for(PROJECT_NAME, LevelFilter::Info)
         .apply()?;
 

@@ -58,6 +58,23 @@ impl GarbageCollector {
         self.signer = signer_;
     }
 
+    pub fn read_all_non_zero_balances() -> Result<()> {
+        let dir = fs::read_dir("results")?;
+        for entry in dir {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_file() {
+                let file_name = path.file_name().unwrap().to_str().unwrap();
+                if file_name.starts_with("tokens_") {
+                    let address = file_name.replace("tokens_", "").replace(".json", "");
+                    info!("Reading non zero balances for address: {}", address);
+                    GarbageCollector::read_non_zero_balances(address)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn read_non_zero_balances(target_address: String) -> Result<()> {
         let file_path = format!("results/tokens_{}.json", target_address.to_lowercase());
         let contents = match fs::read_to_string(file_path) {

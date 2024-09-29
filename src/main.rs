@@ -1,5 +1,7 @@
 use eyre::Result;
 use garbage_collector_rust::helpers::garbage_collector::GarbageCollector;
+use log::{info, error};
+use garbage_collector_rust::helpers::utils::setup_logger;
 
 enum Scenario {
     BalanceCheckerPK,
@@ -10,16 +12,22 @@ enum Scenario {
 async fn main() -> Result<()> {
     let scenario = Scenario::BalanceCheckerPK;
 
+    dotenv::dotenv().ok();
+    setup_logger().unwrap();
+
+    info!("Starting Garbage Collector");
+
     match scenario {
         Scenario::BalanceCheckerPK => {
-            println!("Balance Checker With Private Keys");
+            info!("Balance Checker With Private Keys");   
 
             // Parse txt file with keys
             let keys_vec: Vec<&str> = vec![];
 
             // Check if keys are empty
             if keys_vec.is_empty() {
-                panic!("No keys found in the file");
+                error!("No keys found in the file");
+                return Ok(());
             }
 
             let mut garbage_collector = GarbageCollector::new();
@@ -29,14 +37,15 @@ async fn main() -> Result<()> {
             }
         }
         Scenario::BalanceCheckerAddressess => {
-            println!("Balance Checker With Addresses");
+            info!("Balance Checker With Addresses");
 
             // Parse txt file with addresses
             let addresses_vec: Vec<&str> = vec![];
 
             // Check if addresses are empty
             if addresses_vec.is_empty() {
-                panic!("No addresses found in the file");
+                error!("No addresses found in the file");
+                return Ok(());
             }
 
             let garbage_collector = GarbageCollector::new();

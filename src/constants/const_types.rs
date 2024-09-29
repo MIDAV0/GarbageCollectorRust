@@ -1,3 +1,6 @@
+
+pub static PROJECT_NAME: &str = "garbage_collector";
+
 #[derive(Debug, Clone)]
 pub struct Env {
     pub debug: bool,

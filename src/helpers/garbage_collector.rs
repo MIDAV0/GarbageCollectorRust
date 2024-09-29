@@ -1,16 +1,13 @@
-use std::collections::HashMap;
 use alloy::{primitives::{utils::format_units, Address, U256}, signers::local::PrivateKeySigner};
 use const_types::ChainName;
-use std::fs;
 use serde_json::{to_string_pretty, Value};
 use eyre::Result;
 use reqwest::Url;
-use std::io::Write;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use tokio::task;
+use std::{io::Write, sync::Arc, fs, collections::HashMap};
+use tokio::{task, sync::Mutex};
+use log::{info, error};
 
-use crate::helpers::web3_client::*;
+use crate::{constants::const_types::Env, helpers::web3_client::*};
 use crate::constants::const_types;
 
 pub struct TokenData {
@@ -32,6 +29,7 @@ pub struct GarbageCollector {
     signer: PrivateKeySigner,
     // Chain JSON data
     chain_data: Value,
+    debug: bool,
 }
 
 impl Default for GarbageCollector {
@@ -39,6 +37,7 @@ impl Default for GarbageCollector {
         GarbageCollector {
             signer: PrivateKeySigner::random(),
             chain_data: Value::Null,
+            debug: false,
         }
     }
 }
@@ -46,8 +45,10 @@ impl Default for GarbageCollector {
 impl GarbageCollector {
     pub fn new() -> Self {
         let chain_data = GarbageCollector::parse_json_data("data/chains.json".to_owned()).unwrap();
+        let env = Env::new();
         GarbageCollector {
             chain_data,
+            debug: env.debug,
             ..Default::default()
         }
     }

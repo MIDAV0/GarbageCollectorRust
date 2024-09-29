@@ -1,3 +1,20 @@
+#[derive(Debug, Clone)]
+pub struct Env {
+    pub debug: bool,
+}
+
+pub fn get_env(key: &str) -> String {
+    std::env::var(key).unwrap_or(String::from(""))
+}
+
+impl Env {
+    pub fn new() -> Self {
+        Env {
+            debug: get_env("DEBUG").parse::<bool>().unwrap(),
+        }
+    }
+}
+
 pub enum ChainName {
     Ethereum,
     Arbitrum,

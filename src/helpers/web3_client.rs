@@ -1,15 +1,28 @@
-use std::{fs,time};
+use std::{fs, sync::Arc, time};
 
 use alloy::{
-    contract::Interface, dyn_abi::DynSolValue, json_abi::JsonAbi, network::{Ethereum, EthereumWallet, TransactionBuilder}, primitives::{Address, Bytes, U256}, providers::{
-        fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller}, Identity, Provider, ProviderBuilder, RootProvider
-    }, rpc::types::{TransactionReceipt, TransactionRequest}, signers::local::PrivateKeySigner, sol, transports::http::{Client, Http}
+    contract::Interface,
+    dyn_abi::DynSolValue,
+    json_abi::JsonAbi,
+    network::{Ethereum, EthereumWallet, TransactionBuilder},
+    primitives::{Address, Bytes, U256},
+    providers::{
+        fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller},
+        Identity,
+        Provider,
+        ProviderBuilder,
+        RootProvider
+    },
+    rpc::types::{TransactionReceipt, TransactionRequest},
+    signers::local::PrivateKeySigner,
+    sol,
+    transports::http::{Client, Http}
 };
 use eyre::Result;
 use reqwest::Url;
 use serde::{Serialize, Deserialize};
 
-use crate::TokenData;
+use crate::helpers::garbage_collector::TokenData;
 
 type MyFiller = FillProvider<JoinFill<JoinFill<JoinFill<JoinFill<Identity, GasFiller>, NonceFiller>, ChainIdFiller>, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
 
@@ -146,15 +159,15 @@ impl Web3Client {
         tokio::time::sleep(duration).await;
     }
 
-    fn get_provider(&self, retry_count: usize) -> MyFiller {
+    fn get_provider(&self, retry_count: usize) -> Arc<MyFiller> {
         let wallet = EthereumWallet::from(self.signer.clone());
         // Get the rpc url index based on the retry count using modulo operator
         let index = retry_count % self.network.rpc_url.len();
         let rpc_url = self.network.rpc_url[index].clone();
-        ProviderBuilder::new()
+        Arc::new(ProviderBuilder::new()
             .with_recommended_fillers()
             .wallet(wallet)
-            .on_http(rpc_url)
+            .on_http(rpc_url))
     }
 
     pub async fn approve(
@@ -197,13 +210,11 @@ impl Web3Client {
     ) -> Result<TransactionReceipt> {
         let provider = self.get_provider(0);
         if let Some(gas_multipliers) = _gas_multipliers {
-            let gas_limit = self.estimate_tx_gas(&tx_body, Some(gas_multipliers.limit)).await?;
+            // let gas_limit = self.estimate_tx_gas(&tx_body, Some(gas_multipliers.limit)).await?;
             let gas_price = self.get_gas_price(Some(gas_multipliers.price)).await?;
-            tx_body = tx_body.gas_limit(gas_limit).max_fee_per_gas(gas_price);
+            // tx_body = tx_body.max_fee_per_gas(gas_price).max_priority_fee_per_gas(gas_price);
 
-            let wallet = EthereumWallet::from(self.signer.clone());
-            let tx_envelope = tx_body.build(&wallet).await?;
-            let tx_receipt = provider.send_tx_envelope(tx_envelope).await?.get_receipt().await?;
+            let tx_receipt = provider.send_transaction(tx_body).await?.get_receipt().await?;
             Ok(tx_receipt)  
         } else {
             let tx_receipt = provider.send_transaction(tx_body).await?.get_receipt().await?;

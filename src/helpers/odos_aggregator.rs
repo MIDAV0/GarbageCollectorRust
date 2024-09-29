@@ -1,7 +1,7 @@
-use alloy::{network::TransactionBuilder, primitives::{utils::parse_units, Address, U256}, rpc::types::TransactionRequest, signers::local::PrivateKeySigner};
+use alloy::{network::TransactionBuilder, primitives::{utils::parse_units, Address, Bytes, U256}, rpc::types::TransactionRequest, signers::local::PrivateKeySigner};
 use serde_json::Value;
-use crate::web3_client::{Network, Web3Client, GasMultiplier};
-use crate::TokenData;
+use crate::helpers::web3_client::{Network, Web3Client, GasMultiplier};
+use crate::helpers::garbage_collector::TokenData;
 use eyre::Result;
 use serde::{Serialize, Deserialize};
 use reqwest::Url;
@@ -41,7 +41,7 @@ struct OdosQuotePayload {
     chain_id: u32,
     input_tokens: Vec<PayloadTokenIn>,
     output_tokens: Vec<PayloadTokenOut>,
-    user_addr: Address,
+    user_addr: String,
     slippage_limit_percent: f64,
     path_viz: bool,
     rederral_code: u8,
@@ -51,12 +51,12 @@ struct OdosQuotePayload {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all(serialize = "camelCase"))]
 struct OdosAssemblePayload {
-    user_addr: Address,
+    user_addr: String,
     path_id: String,
     simulate: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all="camelCase")]
 struct OdosQuoteType {
     block_number: u64,
@@ -119,10 +119,11 @@ impl OdosAggregator {
         token_in: TokenData,
         token_out: TokenData,
         amount_in: U256,
-    ) -> Result<bool> {
+    ) -> Result<()> {
         let quote = self.get_quote(&token_in, &token_out, amount_in).await?;
+        println!("Got quote");
         self.execute_swap(&token_in, &token_out, quote).await?;
-        Ok(true)
+        Ok(())
     }
 
     async fn get_quote(
@@ -132,11 +133,11 @@ impl OdosAggregator {
         amount_in: U256
     ) -> Result<OdosQuoteType> {
         if !SUPPORTED_NETWORKS.contains(&self.network.chain_name.as_str()) {
-            return Err(eyre::eyre!(format!("Network {} not supported by Odos", self.network.chain_name)));
+            return Err(eyre::eyre!(format!("OdosAggregator:get_quote Network {} not supported by Odos", self.network.chain_name)));
         }
 
         if Self::is_token_native(&token_in.address) && Self::is_token_native(&token_out.address) {
-            return Err(eyre::eyre!("Both tokens are native"));
+            return Err(eyre::eyre!("OdosAggregator:get_quote Both tokens are native"));
         }
 
         let payload = OdosQuotePayload {
@@ -150,10 +151,14 @@ impl OdosAggregator {
                 amount: amount_in.to_string(),
             }],
             output_tokens: vec![PayloadTokenOut {
-                token_address: token_out.address,
+                token_address: if Self::is_token_native(&token_out.address) {
+                    Address::ZERO
+                } else {
+                    token_out.address
+                },
                 proportion: 1,
-            }],
-            user_addr: self.signer.address(),
+            }], 
+            user_addr: self.signer.address().to_checksum(None),
             slippage_limit_percent: 3.0,
             path_viz: false,
             rederral_code: 1,
@@ -167,7 +172,10 @@ impl OdosAggregator {
             .send()
             .await?;
         if res.status() != 200 {
-            return Err(eyre::eyre!("Failed to get quote"));
+            match res.text().await {
+                Ok(e) => return Err(eyre::eyre!("OdosAggregator:get_quote Failed to get quote from Odos: {}", e)),
+                Err(_) => return Err(eyre::eyre!("OdosAggregator:get_quote Failed to fetch quote from Odos")),
+            }
         }
         let json: Value = res.json().await?;
         let quote = serde_json::from_value::<OdosQuoteType>(json);
@@ -191,12 +199,12 @@ impl OdosAggregator {
             .send()
             .await?;
         if res.status() != 200 {
-            return Err(eyre::eyre!("OdosAggregator:executeSwap Failed to get contract info"));
+            return Err(eyre::eyre!("OdosAggregator:execute_swap Failed to get contract info"));
         }
         let json: Value = res.json().await?;
         let router_address = match json["routerAddress"].as_str() {
             Some(addr) => addr,
-            None => return Err(eyre::eyre!("OdosAggregator:executeSwap Could not get approval target")),
+            None => return Err(eyre::eyre!("OdosAggregator:execute_swap Could not get approval target")),
         };
 
         let web3_client = Web3Client::new(self.network.clone(), self.signer.clone())?;
@@ -208,23 +216,24 @@ impl OdosAggregator {
         ).await?;
 
         let payload = OdosAssemblePayload {
-            user_addr: self.signer.address(),
+            user_addr: self.signer.address().to_checksum(None),
             path_id: quote.path_id,
             simulate: true,
         };
 
-        let client = reqwest::Client::new();
         let res = client.post(self.assemble_url.clone())
             .header("Content-Type", "application/json")
             .json(&payload)
             .send()
             .await?;
         if res.status() != 200 {
-            return Err(eyre::eyre!("OdosAggregator:executeSwap Failed to assempble swap"));
+            println!("{:?}", res.text().await);
+            return Err(eyre::eyre!("OdosAggregator:execute_swap Failed to assempble swap"));
         }
         let json: Value = res.json().await?;
+        println!("{:?}", json);
         if !json["simulation"]["isSuccess"].as_bool().unwrap() {
-            return Err(eyre::eyre!("OdosAggregator:executeSwap Failed to simulate swap"));
+            return Err(eyre::eyre!("OdosAggregator:execute_swap Failed to simulate swap"));
         };
         let tx = match serde_json::from_value::<OdosAssembleType>(json["transaction"].clone()) {
             Ok(q) => q,
@@ -236,9 +245,12 @@ impl OdosAggregator {
             .with_to(tx.to)
             .with_nonce(tx.nonce)
             .with_chain_id(tx.chain_id)
-            .with_value(parse_units("1.0", "wei")?.into());
+            .with_value(parse_units(tx.value.as_str(), "wei")?.into())
+            .with_input(Bytes::copy_from_slice(tx.data.as_bytes()));
 
         let gas_price_multiplier: f32 = if self.network.chain_name == "Ethereum" || self.network.chain_name == "Polygon" || self.network.chain_name == "Avalanche" {1.1} else {1.0};
+
+        println!("TX: {:?}", adjusted_tx);
 
         let _ = web3_client.send_tx(adjusted_tx, Some(GasMultiplier::new(gas_price_multiplier, 1.0))).await?;
 
@@ -254,36 +266,43 @@ impl OdosAggregator {
 
 #[tokio::test]
 async fn test_get_quote() {
-    let signer = PrivateKeySigner::random();
+    let signer: PrivateKeySigner = "881406c0472ada6b1c19aee85389a25219ba74d42264bae22dd81ce213a26e91".parse().expect("should parse private key");
     let network = Network {
-        id: 1,
-        chain_name: "Ethereum".to_owned(),
-        rpc_url: vec!["https://ethereum.publicnode.com".parse::<Url>().unwrap()],
-        explorer: "https://etherscan.io/tx/".to_owned(),
+        id: 8453,
+        chain_name: "Base".to_owned(),
+        rpc_url: vec!["https://base.publicnode.com".parse::<Url>().unwrap()],
+        explorer: "https://basescan.org/tx/".to_owned(),
         multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap(),
     };
     let odos_aggregator = OdosAggregator::new(signer, network, vec![]).unwrap();
     let token_in = TokenData {
-        address: "0x6ff2241756549b5816a177659e766eaf14b34429".parse().unwrap(),
-        name: "AQTIS".to_owned(),
-        symbol: "AQTIS".to_owned(),
+        address: "0x9de16c805a3227b9b92e39a446f9d56cf59fe640".parse().unwrap(),
+        name: "BENTO".to_owned(),
+        symbol: "BENTO".to_owned(),
         decimals: 18,
     };
     let token_out = TokenData {
-        address: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2".parse().unwrap(),
-        name: "Wrapped Ether".to_owned(),
-        symbol: "WETH".to_owned(),
+        address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".parse().unwrap(),
+        name: "Ether".to_owned(),
+        symbol: "ETH".to_owned(),
         decimals: 18,
     };
-    let amount_in = U256::from(1000000000000000_i64);
-    odos_aggregator.get_quote(&token_in, &token_out, amount_in).await.unwrap();
+    let amount_in = U256::from_str_radix("75899e7357ec6f0e00000", 16);
+    let am = match amount_in {
+        Ok(q) => q,
+        Err(e) => panic!("{:?}", e),
+    };
+    let d = odos_aggregator.swap(token_in, token_out, am).await;
+    match d {
+        Ok(q) => println!("{:?}", q),
+        Err(e) => println!("{:?}", e),
+    }
 }
 
 #[test]
 fn test_bigint() -> Result<()> {
-    // Convert 0xd14c4827a2cd7a62 to U256
-    let value = parse_units("100000.0", "wei")?;
-    let num: U256 = value.into();
-    println!("Value: {}", num);
+    // Convert 0x75899e7357ec6f0e00000 to U256
+    let amount = U256::from_str_radix("75899e7357ec6f0e00000", 16)?;
+    println!("{:?}", amount);
     Ok(())
 }

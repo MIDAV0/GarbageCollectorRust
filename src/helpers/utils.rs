@@ -24,7 +24,7 @@ pub fn setup_logger() -> Result<()> {
             ))
         })
         .chain(std::io::stdout())
-        .level(log::LevelFilter::Debug)
+        .level(log::LevelFilter::Info)
         .level_for(PROJECT_NAME, LevelFilter::Info)
         .apply()?;
 

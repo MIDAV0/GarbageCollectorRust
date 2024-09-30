@@ -5,10 +5,11 @@ use eyre::Result;
 use reqwest::Url;
 use std::{io::Write, sync::Arc, fs, collections::HashMap};
 use tokio::{task, sync::Mutex};
-use log::{info, error};
+use log::{error, info, warn};
 
 use crate::{constants::const_types::Env, helpers::web3_client::*};
 use crate::constants::const_types;
+use crate::helpers::odos_aggregator::OdosAggregator;
 
 pub struct TokenData {
     pub address: Address,
@@ -182,24 +183,19 @@ impl GarbageCollector {
         match Self::parse_json_data(format!("data/token_lists/{}.json", chain_name)) {
             Ok(v) => Ok(v),
             Err(_) => {
-                println!("Fetching token data from Coingecko API");
+                warn!("No token data found for chain: {}. Fetching token data from Coingecko API", chain_name);
                 Self::fetch_token_data(chain_name).await
             }
         }
     }
 
-    pub async fn get_non_zero_tokens(&self, target_address_: Option<String>) -> Result<()> {
+    pub async fn get_non_zero_tokens(&self, target_address: Address) -> Result<()> {
 
         let results = Arc::new(Mutex::new(HashMap::<String, Vec<Balance>>::new()));
         let mut handles = vec![];
         let chain_data = {
             let cloned_chain_data = self.chain_data.clone();
             cloned_chain_data.as_object().unwrap().clone()
-        };
-
-        let target_address = match &target_address_ {
-            Some(t_a) => t_a.parse::<Address>().unwrap(),
-            None => self.signer.address(),
         };
 
         for (k, v) in chain_data {
@@ -213,7 +209,7 @@ impl GarbageCollector {
             ) {
                 Ok(n) => n,
                 Err(e) => {
-                    println!("Error creating network {} : {:?}", k, e);
+                    error!("Error creating network {} : {:?}", k, e);
                     continue;
                 }
             };
@@ -252,7 +248,7 @@ impl GarbageCollector {
                 let mut balance_list = match res {
                     Ok(b_l) => b_l,
                     Err(e) => {
-                        println!("Error getting balance list: {:?}", e);
+                        error!("Error getting balance list: {:?}", e);
                         return;
                     }
                 };
@@ -288,8 +284,7 @@ impl GarbageCollector {
         let balance_list =  match web3_client.call_balance(target_wallet, token_datas).await {
             Ok(b_l) => b_l,
             Err(e) => {
-                println!("Error getting balance list: {:?}", e);
-                return Err(eyre::eyre!("Error getting balance list"));
+                return Err(eyre::eyre!("Error getting balance list: {:?}", e));
             }
         };
         Ok(balance_list)
@@ -297,16 +292,14 @@ impl GarbageCollector {
 
     async fn swap_tokens_to_native_for_chain(
         network: Network,
-        token_balances: &Vec<Balance>
+        token_in: TokenData,
+        token_out: TokenData,
+        amount_in: U256,
+        signer: PrivateKeySigner,
     ) -> Result<()> {
-        // Shuffle tokens option
-        // let native_token_data: Balance = Balance::new(
-        //     "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".parse::<Address>().unwrap(),
-            
-        //     "NATIVE (ETH)".to_owned(),
-        //     18,
-        //     U256::from(0),
-        // );
+        let odos_aggregator = OdosAggregator::new(signer, network, vec![]).unwrap();
+
+        odos_aggregator.swap(token_in, token_out, amount_in).await?;
 
         Ok(())
     }
@@ -326,8 +319,9 @@ fn test_read_non_zero_balances() {
 
 #[tokio::test]
 async fn test_get_non_zero_tokens() {
+    dotenv::dotenv().ok();
     let garbage_collector = GarbageCollector::new();
-    let _ = garbage_collector.get_non_zero_tokens(Some("0xf63feA8d383b8089BAbFf2A712AB3190CB21732D".to_owned())).await.unwrap();
+    let _ = garbage_collector.get_non_zero_tokens("0xf63feA8d383b8089BAbFf2A712AB3190CB21732D".parse().unwrap()).await.unwrap();
 }
 
 #[tokio::test]

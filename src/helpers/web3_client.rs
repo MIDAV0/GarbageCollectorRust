@@ -19,6 +19,7 @@ use alloy::{
     transports::http::{Client, Http}
 };
 use eyre::Result;
+use log::warn;
 use reqwest::Url;
 use serde::{Serialize, Deserialize};
 
@@ -215,7 +216,7 @@ impl Web3Client {
             // tx_body = tx_body.max_fee_per_gas(gas_price).max_priority_fee_per_gas(gas_price);
 
             let tx_receipt = provider.send_transaction(tx_body).await?.get_receipt().await?;
-            Ok(tx_receipt)  
+            Ok(tx_receipt)
         } else {
             let tx_receipt = provider.send_transaction(tx_body).await?.get_receipt().await?;
             Ok(tx_receipt)          
@@ -291,9 +292,9 @@ impl Web3Client {
                     let call_result = multicall.tryAggregate(false, calls.clone()).call().await;
                     let Multicall::tryAggregateReturn { returnData } = match call_result {
                         Ok(data) => data,
-                        Err(e) => {
-                            println!("Error: {:?}", e);
+                        Err(_) => {
                             retry_count += 1;
+                            warn!("RPC call failed. Trying again. Retry count: {}", retry_count+1);
                             if self.network.rpc_url.len() == 1 {
                                 Self::sleep(time::Duration::from_millis(3000)).await;
                             } else {

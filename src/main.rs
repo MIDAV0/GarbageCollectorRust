@@ -1,3 +1,4 @@
+use alloy::{primitives::Address, signers::local::{PrivateKeySigner, LocalSigner}};
 use eyre::Result;
 use garbage_collector_rust::helpers::garbage_collector::GarbageCollector;
 use log::{error, info, warn};
@@ -11,7 +12,7 @@ enum Scenario {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let scenario = Scenario::BalanceCheckerPK;
+    let scenario = Scenario::BalanceCheckerAddressess;
 
     dotenv::dotenv().ok();
     setup_logger().unwrap();
@@ -33,8 +34,16 @@ async fn main() -> Result<()> {
 
             let mut garbage_collector = GarbageCollector::new();
             for key in keys_vec {
-                garbage_collector.connect_signer(key.parse().expect("invalid private key"));
-                if let Err(e) = garbage_collector.get_non_zero_tokens(None).await {
+                let parsed_signer: PrivateKeySigner = match key.parse() {
+                    Ok(signer) => signer,
+                    Err(e) => {
+                        error!("Error parsing private key {}: {:?}", key, e);
+                        continue;
+                    }
+                };
+                let signer_address = parsed_signer.address();
+                garbage_collector.connect_signer(parsed_signer);
+                if let Err(e) = garbage_collector.get_non_zero_tokens(signer_address).await {
                     error!("Error getting non zero tokens for key {} : {:?}", key, e);
                 }
             }
@@ -43,7 +52,9 @@ async fn main() -> Result<()> {
             info!("Balance Checker With Addresses");
 
             // Parse txt file with addresses
-            let addresses_vec: Vec<&str> = vec![];
+            let mut addresses_vec: Vec<&str> = vec![];
+
+            addresses_vec.push("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19");
 
             // Check if addresses are empty
             if addresses_vec.is_empty() {
@@ -53,7 +64,14 @@ async fn main() -> Result<()> {
 
             let garbage_collector = GarbageCollector::new();
             for address in addresses_vec {
-                if let Err(e) = garbage_collector.get_non_zero_tokens(Some(address.to_owned())).await {
+                let parsed_address: Address = match address.parse() {
+                    Ok(address) => address,
+                    Err(e) => {
+                        error!("Error parsing address {}: {:?}", address, e);
+                        continue;
+                    }
+                };
+                if let Err(e) = garbage_collector.get_non_zero_tokens(parsed_address).await {
                     error!("Error getting non zero tokens for address {} : {:?}", address, e);
                 }
             }

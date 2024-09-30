@@ -448,6 +448,14 @@
     "symbol": "DOLP"
   },
   {
+    "address": "0x858c50c3af1913b0e849afdb74617388a1a5340d",
+    "chainId": 8453,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/36352/thumb/logo_min-min_%281%29.png?1711451584",
+    "name": "SubQueryToken",
+    "symbol": "SQT"
+  },
+  {
     "address": "0x4200000000000000000000000000000000000006",
     "chainId": 8453,
     "decimals": 18,

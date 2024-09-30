@@ -269,7 +269,7 @@ impl OdosAggregator {
 
 #[tokio::test]
 async fn test_get_quote() {
-    let signer: PrivateKeySigner = "881406c0472ada6b1c19aee85389a25219ba74d42264bae22dd81ce213a26e91".parse().expect("should parse private key");
+    let signer: PrivateKeySigner = "".parse().expect("should parse private key");
     let network = Network {
         id: 8453,
         chain_name: "Base".to_owned(),

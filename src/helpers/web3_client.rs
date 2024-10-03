@@ -7,8 +7,7 @@ use alloy::{
     network::{Ethereum, EthereumWallet, TransactionBuilder},
     primitives::{Address, Bytes, U256},
     providers::{
-        fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller},
-        Identity,
+        fillers::{FillProvider, RecommendedFiller},
         Provider,
         ProviderBuilder,
         RootProvider
@@ -16,16 +15,14 @@ use alloy::{
     rpc::types::{TransactionReceipt, TransactionRequest},
     signers::local::PrivateKeySigner,
     sol,
-    transports::http::{Client, Http}
+    transports::http::Http
 };
 use eyre::Result;
 use log::warn;
-use reqwest::Url;
+use reqwest::{Client, Url};
 use serde::{Serialize, Deserialize};
 
 use crate::helpers::garbage_collector::TokenData;
-
-type MyFiller = FillProvider<JoinFill<JoinFill<JoinFill<JoinFill<Identity, GasFiller>, NonceFiller>, ChainIdFiller>, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
 
 sol!(
     #[allow(missing_docs)]
@@ -40,6 +37,8 @@ sol!(
     Multicall,
     "src/utils/contract_abis/Multicall2.json"
 );
+
+type MyFiller = FillProvider<RecommendedFiller, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
 
 #[derive(Clone)]
 pub struct Network {
@@ -124,12 +123,14 @@ pub struct Web3Client {
     network: Network,
     multicall_interface: Interface,
     erc20_interface: Interface,
+    provider: Arc<MyFiller>,
 }
 
 impl Web3Client {
     pub fn new(
         network: Network,
         signer: PrivateKeySigner,
+        // provider: P,
     ) -> Result<Self> {
         let multicall_interface = {
             let path = "src/utils/contract_abis/Multicall2.json";
@@ -145,12 +146,17 @@ impl Web3Client {
             Interface::new(abi)
         };
 
+        let provider = Arc::new(ProviderBuilder::new()
+        .with_recommended_fillers()
+        .on_http(network.rpc_url[0].clone()));
+
         Ok(
             Web3Client {
                 signer,
                 network,
                 multicall_interface,
                 erc20_interface,
+                provider,
             }
         )
     }
@@ -160,15 +166,12 @@ impl Web3Client {
         tokio::time::sleep(duration).await;
     }
 
-    fn get_provider(&self, retry_count: usize) -> Arc<MyFiller> {
-        let wallet = EthereumWallet::from(self.signer.clone());
-        // Get the rpc url index based on the retry count using modulo operator
+    fn change_rpc(&mut self, retry_count: usize) {
         let index = retry_count % self.network.rpc_url.len();
         let rpc_url = self.network.rpc_url[index].clone();
-        Arc::new(ProviderBuilder::new()
+        self.provider = Arc::new(ProviderBuilder::new()
             .with_recommended_fillers()
-            .wallet(wallet)
-            .on_http(rpc_url))
+            .on_http(rpc_url));
     }
 
     pub async fn approve(
@@ -178,8 +181,7 @@ impl Web3Client {
         amount: U256,
         _min_allowance: Option<U256>,
     ) -> Result<Option<TransactionReceipt>> {
-        let provider = self.get_provider(0);
-        let erc20 = ERC20::new(token_address, provider);
+        let erc20 = ERC20::new(token_address, self.provider.clone());
 
         if let Some(min_allowance) = _min_allowance {
             let ERC20::allowanceReturn { _0 } = erc20.allowance(self.signer.address(), to).call().await?;
@@ -209,18 +211,17 @@ impl Web3Client {
         mut tx_body: TransactionRequest,
         _gas_multipliers: Option<GasMultiplier>,
     ) -> Result<TransactionReceipt> {
-        let provider = self.get_provider(0);
         if let Some(gas_multipliers) = _gas_multipliers {
             // let gas_limit = self.estimate_tx_gas(&tx_body, Some(gas_multipliers.limit)).await?;
             let gas_price = self.get_gas_price(Some(gas_multipliers.price)).await?;
-            // tx_body = tx_body.max_fee_per_gas(gas_price).max_priority_fee_per_gas(gas_price);
-
-            let tx_receipt = provider.send_transaction(tx_body).await?.get_receipt().await?;
-            Ok(tx_receipt)
-        } else {
-            let tx_receipt = provider.send_transaction(tx_body).await?.get_receipt().await?;
-            Ok(tx_receipt)          
+            tx_body = tx_body.max_fee_per_gas(gas_price).max_priority_fee_per_gas(gas_price);
         }
+
+        let wallet = EthereumWallet::from(self.signer.clone());
+        let tx_envelope = tx_body.build(&wallet).await?;
+
+        let tx_receipt = self.provider.send_tx_envelope(tx_envelope).await?.get_receipt().await?;
+        Ok(tx_receipt)          
     }
 
     async fn estimate_tx_gas(
@@ -229,8 +230,7 @@ impl Web3Client {
         _multiplier: Option<f32>,
     ) -> Result<u128> {
         let multiplier = _multiplier.unwrap_or(1.3);
-        let provider = self.get_provider(0);
-        let gas_estimate = provider.estimate_gas(tx_body).await?;
+        let gas_estimate = self.provider.estimate_gas(tx_body).await?;
         Ok((gas_estimate as f32 * multiplier) as u128)
     }
 
@@ -239,25 +239,22 @@ impl Web3Client {
         _multiplier: Option<f32>,
     ) -> Result<u128> {
         let multiplier = _multiplier.unwrap_or(1.3);
-        let provider = self.get_provider(0);
-        let gas_price = provider.get_gas_price().await?;
+        let gas_price = self.provider.get_gas_price().await?;
         Ok((gas_price as f32 * multiplier) as u128)
     }
 
     pub async fn get_user_balance(&self, wallet_address: Address, token_address: Option<String>) -> Result<U256> {
-        let provider = self.get_provider(0);
         if let Some(token) = token_address {
-            let erc20 = ERC20::new(token.parse()?, provider);
+            let erc20 = ERC20::new(token.parse()?, self.provider.clone());
             let ERC20::balanceOfReturn { balance } = erc20.balanceOf(wallet_address).call().await?;
             Ok(balance)
         } else {
-            Ok(provider.get_balance(wallet_address).await?)
+            Ok(self.provider.get_balance(wallet_address).await?)
         }
     }
 
-    pub async fn call_balance(&self, wallet_address: Address, tokens: Vec<TokenData>) -> Result<Vec<Balance>> {
-        let provider = self.get_provider(0);
-        let mut multicall = Multicall::new(self.network.multicall, provider);
+    pub async fn call_balance(&mut self, wallet_address: Address, tokens: Vec<TokenData>) -> Result<Vec<Balance>> {
+        let mut multicall = Multicall::new(self.network.multicall, self.provider.clone());
         let max_retries = 2;
         let mut balances: Vec<Balance> = vec![];
         let mut calls: Vec<Multicall::Call> = vec![];
@@ -298,8 +295,8 @@ impl Web3Client {
                             if self.network.rpc_url.len() == 1 {
                                 Self::sleep(time::Duration::from_millis(3000)).await;
                             } else {
-                                let new_provider = self.get_provider(retry_count);
-                                multicall = Multicall::new(self.network.multicall, new_provider);
+                                self.change_rpc(retry_count);
+                                multicall = Multicall::new(self.network.multicall, self.provider.clone());
                             }
                             continue;
                         }

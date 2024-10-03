@@ -18,14 +18,6 @@ pub struct TokenData {
     pub decimals: u8,
 }
 
-// struct NonzeroTokenData {
-//     address: String,
-//     name: String,
-//     symbol: String,
-//     decimals: u8,
-//     balance: u128,
-// }
-
 pub struct GarbageCollector {
     signer: PrivateKeySigner,
     // Chain JSON data
@@ -278,8 +270,7 @@ impl GarbageCollector {
         token_datas: Vec<TokenData>,
         signer: PrivateKeySigner,
     ) -> Result<Vec<Balance>> {
-
-        let web3_client = Web3Client::new(network, signer).unwrap();
+        let mut web3_client = Web3Client::new(network, signer).unwrap();
         
         let balance_list =  match web3_client.call_balance(target_wallet, token_datas).await {
             Ok(b_l) => b_l,

@@ -1,3 +1,6 @@
 /target
 /results
 .env
+/data/private_keys.txt
+/data/proxies.txt
+/data/db.json

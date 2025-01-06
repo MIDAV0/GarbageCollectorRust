@@ -1,16 +1,7 @@
 use std::{marker::PhantomData, fs, sync::Arc, time};
 
 use alloy::{
-    contract::Interface,
-    dyn_abi::DynSolValue,
-    json_abi::JsonAbi,
-    network::{Ethereum, EthereumWallet, TransactionBuilder},
-    primitives::{Address, Bytes, U256},
-    providers::Provider,
-    rpc::types::{TransactionReceipt, TransactionRequest},
-    signers::local::PrivateKeySigner,
-    sol,
-    transports::{TransportErrorKind, Transport}
+    contract::Interface, dyn_abi::DynSolValue, json_abi::JsonAbi, network::{Ethereum, EthereumWallet, TransactionBuilder}, primitives::{Address, Bytes, U256}, providers::{utils::Eip1559Estimation, Provider}, rpc::types::{TransactionReceipt, TransactionRequest}, signers::local::PrivateKeySigner, sol, sol_types::sol_data::Bool, transports::{Transport, TransportErrorKind}
 };
 use alloy_json_rpc::RpcError;
 use eyre::Result;
@@ -149,26 +140,17 @@ where
         to: Address,
         amount: U256,
         _min_allowance: Option<U256>,
-    ) -> Result<Option<TransactionReceipt>> {
-        let signer_address = self.signer.address();
-        let wallet = EthereumWallet::from(self.signer.clone());
-
+    ) -> Result<bool> {
         if let Some(min_allowance) = _min_allowance {
             let result = retry_async(
-                |x| {
-                    let provider = change_rpc(wallet.clone(), &self.network.rpc_url, x);
-                    async move {
-                        ERC20::new(token_address, provider).allowance(signer_address, to).call().await
-                    }
-                },
+                |_| { ERC20::new(token_address, self.provider).allowance(signer_address, to).call() },
                 3,
                 1000,
-            )
-            .await?;
+            ).await?;
 
             let ERC20::allowanceReturn { _0 } = result;
             if _0 >= min_allowance {
-                return Ok(None);
+                return true;
             }
         }
 
@@ -176,43 +158,69 @@ where
             DynSolValue::Address(to),
             DynSolValue::Uint(amount, 256),
         ])?);
-        let tx = TransactionRequest::default()
-            .with_from(self.signer.address())
-            .with_to(token_address)
-            .with_input(call_data);
 
-        let tx_hash = self.send_tx(tx, None).await?;
+        let tx_result = self.send_tx(token_address, Some(call_data), None).await?;
         
-        Ok(Some(tx_hash))
+        Ok(tx_result)
     }
 
     pub async fn send_tx(
         &mut self,
-        mut tx_body: TransactionRequest,
-        _gas_multipliers: Option<GasMultiplier>,
-    ) -> Result<TransactionReceipt> {
-        if let Some(gas_multipliers) = _gas_multipliers {
-            let gas_limit =self.estimate_tx_gas(&tx_body, Some(gas_multipliers.limit)).await?;
-            
-            let gas_price = self.get_gas_price(Some(gas_multipliers.price)).await?;
-            tx_body = tx_body
-                .max_fee_per_gas(gas_price)
-                .max_priority_fee_per_gas(gas_price)
-                .gas_limit(gas_limit);
-        };
+        to: Address,
+        input: Option<Bytes>,
+        gas_multipliers: Option<GasMultiplier>,
+    ) -> Result<bool> {
+        let mut eip1559_fees = self.provider.estimate_eip1559_fees(None).await?;
 
-        let wallet = EthereumWallet::from(self.signer.clone());
-        let tx_receipt = retry_async(
-            |x| {
-                let provider = change_rpc(wallet.clone(), &self.network.rpc_url, x);
-                async move { 
-                    provider.send_transaction(tx_body).await
-                }                  
-            },
+        if let Some(multipliers) = gas_multipliers {
+            eip1559_fees.max_fee_per_gas = (eip1559_fees.max_fee_per_gas as f32 * multipliers.price) as u128;
+            eip1559_fees.max_priority_fee_per_gas = (eip1559_fees.max_priority_fee_per_gas as f32 * multipliers.price) as u128;
+        }
+
+        let nonce = self
+            .provider
+            .get_transaction_count(self.signer.address())
+            .await?;
+
+        let mut tx_request = TransactionRequest::default()
+            .with_max_fee_per_gas(eip1559_fees.max_fee_per_gas)
+            .with_max_priority_fee_per_gas(eip1559_fees.max_priority_fee_per_gas)
+            .with_to(to)
+            .with_nonce(nonce)
+            .with_chain_id(self.network.id as u64)
+            .with_from(self.address());
+
+        if let Some(data) = input {
+            tx_request.set_input(data);
+        }
+
+        let gas_limit = self.provider.estimate_gas(&tx_request).await?;
+        tx_request.set_gas_limit(gas_limit);
+
+        let signed_transaction = tx_request.build(&self.wallet).await?;
+
+        let receipt = retry_async(
+            |_| { self.provider.send_tx_envelope(signed_transaction.clone()) },
             3,
             1000,
         ).await?.get_receipt().await?;
-        Ok(tx_receipt)          
+
+
+        let tx_status = receipt.status();
+        if tx_status {
+            tracing::info!(
+                "Transaction successful: {}/tx/{}",
+                self.network.explorer,
+                receipt.transaction_hash
+            );
+        } else {
+            tracing::error!("Transaction failed: {}/tx/{}",
+                self.network.explorer,
+                receipt.transaction_hash
+            );
+        }
+
+        Ok(tx_status)
     }
 
     async fn estimate_tx_gas(

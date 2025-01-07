@@ -138,7 +138,7 @@ pub async fn retry_async<F, Fut, T, E>(
 where
     F: Fn(usize) -> Fut,
     Fut: Future<Output = Result<T, E>>,
-    E: RetryableError,
+    E: RetryableError + std::fmt::Debug,
 {
     let mut attempt: usize = 0;
 
@@ -146,6 +146,7 @@ where
         match f(attempt).await {
             Ok(value) => return Ok(value),
             Err(e) if attempt < max_retries && e.is_retryable() => {
+                tracing::warn!("Retrying after error: {:?}", e);
                 attempt += 1;
                 sleep(time::Duration::from_millis(delay)).await;
             }

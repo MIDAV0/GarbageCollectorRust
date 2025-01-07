@@ -1,0 +1,168 @@
+use std::time::Duration;
+
+use reqwest::{header::HeaderMap, Client, Proxy};
+use serde::{de::DeserializeOwned, Serialize};
+use serde_json::json;
+use std::collections::HashMap;
+use reqwest::Method;
+
+use eyre::Report;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+#[allow(unused)]
+pub enum CustomError {
+    #[error("Deserialization error: {0}")]
+    Deserialize(#[from] serde_json::Error),
+
+    #[error("Request error: {0}")]
+    Request(#[from] reqwest::Error),
+
+    #[error("HTTP error: {status} - {text}")]
+    HttpStatusError {
+        status: reqwest::StatusCode,
+        text: String,
+    },
+
+    #[error("Amount of tries is exceeded")]
+    TriesExceeded,
+
+    #[error("Polymarket API error: {0}")]
+    PolymarketApi(String),
+
+    #[error("Timeout error: {0}")]
+    Timeout(String),
+
+    #[error("Clob API error: {0}")]
+    ClobApiError(String),
+
+    #[error("Unexpected error: {0}")]
+    Unexpected(#[from] Report),
+}
+
+
+#[derive(Clone)]
+pub struct RequestParams<'a, S: Serialize> {
+    pub url: &'a str,
+    pub method: Method,
+    pub body: Option<S>,
+    pub query_args: Option<HashMap<&'a str, &'a str>>,
+}
+
+#[derive(Debug)]
+pub struct HttpResponse<ResponseBody> {
+    pub body: Option<ResponseBody>,
+    pub headers: HeaderMap,
+}
+
+pub async fn send_http_request<R: DeserializeOwned>(
+    request_params: &RequestParams<'_, impl Serialize>,
+    headers: Option<&HeaderMap>,
+    proxy: Option<&Proxy>,
+) -> Result<HttpResponse<R>, CustomError> {
+    let client = proxy.map_or_else(Client::new, |proxy| {
+        Client::builder()
+            .proxy(proxy.clone())
+            .build()
+            .unwrap_or_else(|err| {
+                tracing::error!("Failed to build a client with proxy: {proxy:?}. Error: {err}");
+                Client::new()
+            })
+    });
+
+    let mut request = client.request(request_params.method.clone(), request_params.url);
+
+    if let Some(params) = &request_params.query_args {
+        request = request.query(&params);
+    }
+
+    if let Some(body) = &request_params.body {
+        request = request.json(&body);
+    }
+
+    if let Some(headers) = headers {
+        request = request.headers(headers.clone());
+    }
+
+    let response = request.send().await.inspect_err(|e| {
+        tracing::error!(
+            "Request failed: {}. Proxy: {:?}",
+            e,
+            match proxy {
+                Some(p) => format!("{:?}", p),
+                None => "No proxy".to_string(),
+            }
+        )
+    })?;
+
+    let response_headers = response.headers().clone();
+    let status = response.status();
+
+    let text = response
+        .text()
+        .await
+        .inspect_err(|e| tracing::error!("Failed to retrieve response text: {}", e))?;
+
+    if !status.is_success() {
+        tracing::error!(
+            "Request failed with status: {}. Response text: {}. Proxy: {:?}",
+            status,
+            text,
+            match proxy {
+                Some(p) => format!("{:?}", p),
+                None => "No proxy".to_string(),
+            }
+        );
+        return Err(CustomError::HttpStatusError { status, text });
+    }
+
+    let content_type = response_headers
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("");
+
+    let response_body = if text.trim().is_empty() {
+        None
+    } else {
+        let deserialized = if content_type.contains("application/json") {
+            serde_json::from_str::<R>(&text)
+        } else {
+            let json_value = json!(text);
+            serde_json::from_value::<R>(json_value)
+        }
+        .inspect_err(|e| tracing::error!("Failed to deserialize response: {}\n {} ", e, text))?;
+
+        Some(deserialized)
+    };
+
+    Ok(HttpResponse {
+        body: response_body,
+        headers: response_headers,
+    })
+}
+
+pub async fn send_http_request_with_retries<R: DeserializeOwned>(
+    request_params: &RequestParams<'_, impl Serialize>,
+    headers: Option<&HeaderMap>,
+    proxy: Option<&Proxy>,
+    max_retries: Option<usize>,
+    retry_delay: Option<Duration>,
+    should_retry: impl Fn(&CustomError) -> bool,
+) -> Result<HttpResponse<R>, CustomError> {
+    let max_retries = max_retries.unwrap_or(5);
+    let retry_delay = retry_delay.unwrap_or(Duration::from_secs(3));
+
+    for _ in 0..max_retries {
+        match send_http_request(request_params, headers, proxy).await {
+            Ok(response) => return Ok(response),
+            Err(e) => {
+                if !should_retry(&e) {
+                    return Err(e);
+                }
+                tokio::time::sleep(retry_delay).await;
+            }
+        }
+    }
+
+    Err(CustomError::TriesExceeded)
+}

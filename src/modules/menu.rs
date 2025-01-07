@@ -14,10 +14,10 @@ const LOGO: &str = r#"
 "#;
 
 pub async fn menu() -> eyre::Result<()> {
-    async fn read_or_create_db() -> eyre::Result<Database> {
-        match Database::read().await {
+    async fn read_or_create_db(with_pk: bool) -> eyre::Result<Database> {
+        match Database::read(with_pk).await {
             Ok(db) => Ok(db),
-            Err(_) => Database::new().await,
+            Err(_) => if with_pk { Database::new().await } else { Database::new_only_addresses().await }
         }
     }
     
@@ -41,12 +41,14 @@ pub async fn menu() -> eyre::Result<()> {
 
         match selection {
             0 => {
-                let mut db = read_or_create_db().await?;
+                tracing::info!("Balance Checker with Private Keys");
+                let db = read_or_create_db(true).await?;
                 get_balances(db).await?;
-                tracing::info!("Invalid selection")
             }
             1 => {
-                tracing::info!("Balance Checker with Private Keys")
+                tracing::info!("Balance Checker with Addresses");
+                let db = read_or_create_db(false).await?;
+                get_balances(db).await?;
             }
             2 => {
                 return Ok(());

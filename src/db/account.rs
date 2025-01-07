@@ -26,6 +26,15 @@ impl Account {
         }
     }
 
+    pub fn new_light(
+        address: &Address,
+    ) -> Self {
+        Self {
+            address: address.to_string(),
+            ..Default::default()
+        }
+    }
+
     pub fn proxy(&self) -> Option<Proxy> {
         self.proxy
             .as_ref()

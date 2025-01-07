@@ -1,11 +1,21 @@
 use std::{marker::PhantomData, fs, sync::Arc, time};
 
 use alloy::{
-    contract::Interface, dyn_abi::DynSolValue, json_abi::JsonAbi, network::{Ethereum, EthereumWallet, TransactionBuilder}, primitives::{Address, Bytes, U256}, providers::{utils::Eip1559Estimation, Provider}, rpc::types::{TransactionReceipt, TransactionRequest}, signers::local::PrivateKeySigner, sol, sol_types::sol_data::Bool, transports::{Transport, TransportErrorKind}
+    contract::Interface,
+    dyn_abi::DynSolValue,
+    json_abi::JsonAbi,
+    network::{Ethereum, EthereumWallet, TransactionBuilder},
+    primitives::{Address, Bytes, U256},
+    providers::{Provider, ProviderBuilder},
+    rpc::types::TransactionRequest,
+    signers::local::PrivateKeySigner,
+    sol,
+    transports::{Transport, TransportErrorKind}
 };
 use alloy_json_rpc::RpcError;
 use eyre::Result;
 use log::warn;
+use reqwest::Url;
 use serde::{Serialize, Deserialize};
 
 use crate::constants::{TokenData, Network};
@@ -141,17 +151,13 @@ where
         amount: U256,
         _min_allowance: Option<U256>,
     ) -> Result<bool> {
-        if let Some(min_allowance) = _min_allowance {
-            let result = retry_async(
-                |_| { ERC20::new(token_address, self.provider).allowance(signer_address, to).call() },
-                3,
-                1000,
-            ).await?;
 
-            let ERC20::allowanceReturn { _0 } = result;
-            if _0 >= min_allowance {
-                return true;
-            }
+        if let Some(min_allowance) = _min_allowance {
+            if let Ok(allowance) = ERC20::new(token_address, self.provider.clone()).allowance(self.address(), to).call().await {
+                if allowance._0 >= min_allowance {
+                    return Ok(true);
+                }
+            };
         }
 
         let call_data = Bytes::copy_from_slice(&self.erc20_interface.encode_input("transfer", &[
@@ -367,16 +373,22 @@ fn test_encode_function_data() {
 
 #[tokio::test]
 async fn test_get_balance() {
-    let signer = PrivateKeySigner::random();
+    let provider = Arc::new(
+        ProviderBuilder::new()
+            .with_recommended_fillers()
+            .on_http("https://ethereum.publicnode.com".parse::<Url>().unwrap()),
+    );
     let web3_client = Web3Client::new(
+        provider,
+        None,
         Network {
             id: 1,
             chain_name: "Ethereum".to_owned(),
             rpc_url: vec!["https://ethereum.publicnode.com".parse::<Url>().unwrap()],
             explorer: "https://etherscan.io/tx/".to_owned(),
             multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap(),
-        },
-        Some(signer),
+            currency: "ETH".to_owned(),
+        }
     ).unwrap();
     let balance = web3_client.get_user_balance("0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".parse().unwrap(), None).await.unwrap();
     println!("{:?}", balance);
@@ -384,17 +396,22 @@ async fn test_get_balance() {
 
 #[tokio::test]
 async fn test_approve() {
-    let signer: PrivateKeySigner = "".parse().expect("should parse private key");
-    println!("{:?}", signer.address());
+    let provider = Arc::new(
+        ProviderBuilder::new()
+            .with_recommended_fillers()
+            .on_http("https://ethereum.publicnode.com".parse::<Url>().unwrap()),
+    );
     let mut web3_client = Web3Client::new(
+        provider,
+        Some(""),
         Network {
             id: 1,
             chain_name: "Ethereum".to_owned(),
             rpc_url: vec!["https://ethereum.publicnode.com".parse::<Url>().unwrap()],
             explorer: "https://etherscan.io/tx/".to_owned(),
             multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap(),
-        },
-        Some(signer),
+            currency: "ETH".to_owned(),
+        }
     ).unwrap();
     let result = web3_client.approve(
         "0x6ff2241756549b5816a177659e766eaf14b34429".parse().unwrap(),

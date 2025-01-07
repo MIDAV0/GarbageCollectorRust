@@ -1,4 +1,5 @@
 use std::fs::File;
+use alloy::primitives::Address;
 use rand::{
     seq::IteratorRandom,
     thread_rng,
@@ -9,7 +10,13 @@ use crate::helpers::utils::read_file_lines;
 
 use super::{
     account::Account,
-    constants::{DB_FILE_PATH, PRIVATE_KEYS_FILE_PATH, PROXIES_FILE_PATH},
+    constants::{
+        DB_WITH_PK_FILE_PATH,
+        DB_WITH_ADDRESSES_FILE_PATH,
+        ADDRESSES_FILE_PATH,
+        PRIVATE_KEYS_FILE_PATH,
+        PROXIES_FILE_PATH
+    },
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -22,8 +29,12 @@ impl Database {
         Ok(db)
     }
 
-    pub async fn read() -> eyre::Result<Self> {
-        Self::read_from_file(DB_FILE_PATH).await
+    pub async fn read(with_pk: bool) -> eyre::Result<Self> {
+        if with_pk {
+            Self::read_from_file(DB_WITH_PK_FILE_PATH).await
+        } else {
+            Self::read_from_file(DB_WITH_ADDRESSES_FILE_PATH).await
+        }
     }
 
     pub async fn new() -> eyre::Result<Self> {
@@ -37,7 +48,23 @@ impl Database {
             data.push(account);
         }
 
-        let db_file = File::create(DB_FILE_PATH)?;
+        let db_file = File::create(DB_WITH_PK_FILE_PATH)?;
+        serde_json::to_writer_pretty(db_file, &data)?;
+
+        Ok(Self(data))
+    }
+
+    pub async fn new_only_addresses() -> eyre::Result<Self> {
+        let addresses = read_file_lines(ADDRESSES_FILE_PATH).await.unwrap();
+        let mut data = Vec::with_capacity(addresses.len());
+
+        for address_string in addresses.iter() {
+            let address: Address = address_string.parse().unwrap();
+            let account = Account::new_light(&address);
+            data.push(account);
+        }
+
+        let db_file = File::create(DB_WITH_ADDRESSES_FILE_PATH)?;
         serde_json::to_writer_pretty(db_file, &data)?;
 
         Ok(Self(data))
@@ -56,7 +83,7 @@ impl Database {
     }
 
     pub fn update(&self) {
-        let file = File::create(DB_FILE_PATH).expect("Default database must be vaild");
+        let file = File::create(DB_WITH_PK_FILE_PATH).expect("Default database must be vaild");
         let _ = serde_json::to_writer_pretty(file, &self);
     }
 }

@@ -45,6 +45,10 @@ impl Account {
         Arc::new(PrivateKeySigner::from_str(&self.private_key).unwrap())
     }
 
+    pub fn get_private_key(&self) -> &str {
+        &self.private_key
+    }
+
     pub fn get_address(&self) -> Address {
         Address::from_str(&self.address).expect("Address to be valid")
     }

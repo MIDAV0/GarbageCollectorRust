@@ -5,7 +5,6 @@ use eyre::Result;
 use reqwest::Url;
 use std::{sync::Arc, fs, collections::HashMap};
 use tokio::{task::JoinSet, sync::Mutex};
-use log::error;
 
 use crate::web3_client::web3_client::{Web3Client, Balance};
 use crate::constants::{TokenData, ChainName, Network, convert_network_name_to_coingecko_query_string};
@@ -22,8 +21,9 @@ pub async fn get_balances(db: Database) -> Result<()> {
     let chain_data = Arc::new(get_networks()?);
 
     for address in addresses {
-        if let Err(e) = get_non_zero_tokens(address, Arc::clone(&chain_data)).await {
-            error!("Error getting non zero tokens for address {} : {:?}", address, e);
+        if let Err(e) =
+         get_non_zero_tokens(address, Arc::clone(&chain_data)).await {
+            tracing::error!("Error getting non zero tokens for address {} : {:?}", address, e);
         };
     }
 

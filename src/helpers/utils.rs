@@ -2,7 +2,7 @@ use log::LevelFilter;
 use fern::{Dispatch, colors::{Color, ColoredLevelConfig}};
 use eyre::Result;
 use serde_json::{to_string_pretty, Value};
-use std::{future::Future, time, fs, io::Write};
+use std::{collections::HashMap, fs, future::Future, io::Write, time};
 use alloy::{
     contract::Error as ContractError, network::{Ethereum, EthereumWallet}, primitives::Address, providers::{
         fillers::{FillProvider, JoinFill, RecommendedFiller, WalletFiller}, ProviderBuilder, RootProvider
@@ -12,7 +12,7 @@ use alloy_json_rpc::RpcError;
 use reqwest::{Client, Url};
 use tokio::io::AsyncBufReadExt;
 
-use crate::constants::{Network, CHAINS_FILE_PATH, PROJECT_NAME};
+use crate::{constants::{Network, CHAINS_FILE_PATH, PROJECT_NAME}, web3_client::web3_client::Balance};
 
 
 pub type MyFiller = FillProvider<JoinFill<RecommendedFiller, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
@@ -89,6 +89,15 @@ pub fn write_to_json_file<T: serde::Serialize>(filename: String, dir_to_create: 
     let mut file = fs::File::create(filename)?;
     file.write_all(data_string.as_bytes())?;
     Ok(())
+}
+
+pub fn get_user_tokens_from_file(target_address: String) -> Result<HashMap<String, Vec<Balance>>> {
+    let file_path = format!("results/tokens_{}.json", target_address.to_lowercase());
+    let contents = match fs::read_to_string(file_path) {
+        Ok(c) => c,
+        Err(_) => return Err(eyre::eyre!("Failed to read user tokens file"))
+    };
+    Ok(serde_json::from_str(&contents)?)
 }
 
 pub trait RetryableError {

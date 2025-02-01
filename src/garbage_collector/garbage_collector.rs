@@ -9,7 +9,7 @@ use tokio::{task::JoinSet, sync::Mutex};
 use crate::web3_client::web3_client::{Web3Client, Balance};
 use crate::constants::{TokenData, ChainName, Network, convert_network_name_to_coingecko_query_string};
 use crate::db::database::Database;
-use crate::helpers::utils::{parse_json_data, get_networks, write_to_json_file};
+use crate::helpers::utils::{get_networks, get_user_tokens_from_file, parse_json_data, write_to_json_file};
 
 
 pub async fn get_balances(db: Database) -> Result<()> {
@@ -63,7 +63,7 @@ pub async fn get_non_zero_tokens(target_address: Address, chain_data: Arc<Vec<Ne
             let mut balance_list = match res {
                 Ok(b_l) => b_l,
                 Err(e) => {
-                    error!("Error getting balance list: {:?}", e);
+                    tracing::error!("Error getting balance list: {:?}", e);
                     return;
                 }
             };
@@ -129,13 +129,8 @@ pub fn read_all_non_zero_balances() -> Result<()> {
 }
 
 pub fn read_non_zero_balances(target_address: String) -> Result<()> {
-    let file_path = format!("results/tokens_{}.json", target_address.to_lowercase());
-    let contents = match fs::read_to_string(file_path) {
-        Ok(c) => c,
-        Err(_) => return Err(eyre::eyre!("Failed to read file")),
-    };
-    let v: HashMap<String, Vec<Balance>> = serde_json::from_str(&contents)?;
-    output_report(&v);
+    let balances = get_user_tokens_from_file(target_address)?;
+    output_report(&balances);
     Ok(())
 }
 

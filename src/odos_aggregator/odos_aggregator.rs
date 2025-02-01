@@ -10,7 +10,7 @@ use serde::{Serialize, Deserialize};
 use reqwest::{header::HeaderMap, Method};
 use tokio::task::JoinSet;
 
-use crate::{db::{account::Account, database::Database}, helpers::{fetch::{send_http_request_with_retries, RequestParams}, utils::get_networks}, web3_client::web3_client::{GasMultiplier, Web3Client}};
+use crate::{db::{account::Account, database::Database}, helpers::{fetch::{send_http_request_with_retries, RequestParams}, utils::{get_networks, get_user_tokens_from_file}}, web3_client::web3_client::{GasMultiplier, Web3Client}};
 use crate::constants::{TokenData, Network};
 
 use super::constants::ODOS_API_URL;
@@ -134,45 +134,69 @@ pub async fn swap(
     chain_data: Arc<Vec<Network>>,
 ) -> Result<()> {
 
+    let balances = get_user_tokens_from_file(account.get_address().to_string())?;
+
     let mut handles = JoinSet::new();
 
     for network in chain_data.iter() {
         let network = network.clone();
+        let chain_balances = match balances.get(&network.chain_name) {
+            Some(balance) => {
+                if balance.is_empty() {
+                    continue;
+                }
+                balance
+            },
+            None => continue,
+        };
 
+        let account = account.clone();
         handles.spawn(async move {
+            let mut token_bundle = Vec::<TokenData>::with_capacity(5);
+            let mut amount_bundle = Vec::<U256>::with_capacity(5);
 
+            for (index, chain_balance) in chain_balances.iter().enumerate() {
+    
+                let token = TokenData {
+                    address: chain_balance.token_address,
+                    name: chain_balance.token_name.clone(),
+                    symbol: chain_balance.token_symbol.clone(),
+                    decimals: chain_balance.decimals,
+                };
 
-            let quote = get_quote(
-                account.get_address(),
-                &[],
-                &[],
-                [],
-                &network,
-            ).await?;
-            execute_swap(&tokens_in, quote).await?;
+                token_bundle.push(token);
+                amount_bundle.push(chain_balance.balance);
 
+                if token_bundle.len() == 5 || index == chain_balances.len() - 1 {
 
+                    get_quote(
+                        &account,
+                        &token_bundle,
+                        &amount_bundle,
+                        &network,
+                    ).await;
+
+                    token_bundle.clear();
+                    amount_bundle.clear();   
+                }
+            }
         });
     }
     Ok(())
 }
 
 async fn get_quote(
-    address: Address,
+    account: &Account,
     tokens_in: &Vec<TokenData>,
-    tokens_out: &Vec<TokenData>,
-    amounts_in: Vec<U256>,
+    amounts_in: &Vec<U256>,
     network: &Network,
-) -> Result<OdosQuoteType> {
+) -> Result<()> {
     if !SUPPORTED_NETWORKS.contains(&network.chain_name.as_str()) {
         tracing::error!("OdosAggregator:get_quote Network {} not supported by Odos", network.chain_name);
         return Err(eyre::eyre!(format!("OdosAggregator:get_quote Network {} not supported by Odos", network.chain_name)));
     }
 
-    if 
-        tokens_in.iter().any(|t| is_token_native(&t.address))
-        && is_token_native(&tokens_out[0].address) 
-    {
+    if tokens_in.iter().any(|t| is_token_native(&t.address)) {
         return Err(eyre::eyre!("OdosAggregator:get_quote Trying to swap from native token to native token"));
     }
 
@@ -186,7 +210,7 @@ async fn get_quote(
             token_address: Address::ZERO,
             proportion: 1,
         }], 
-        user_addr: address.to_checksum(None),
+        user_addr: account.get_address().to_checksum(None),
         slippage_limit_percent: 3.0,
         path_viz: false,
         rederral_code: 1,
@@ -214,10 +238,16 @@ async fn get_quote(
         |_| true,
     ).await?;
 
-    match response.body {
+    let quote = match response.body {
         Some(q) => Ok(q),
         None => Err(eyre::eyre!("OdosAggregator:get_quote Failed to get quote")),
-    }
+    };
+
+    execute_swap(account,
+        &tokens_in,
+        quote.unwrap(),
+        network
+    ).await
 }
 
 async fn execute_swap(
@@ -258,7 +288,11 @@ async fn execute_swap(
             .on_http(network.rpc_url[0].clone()),
     );
 
-    let mut web3_client = Web3Client::new(provider, Some(account.get_private_key()), network.clone())?;
+    let mut web3_client = Web3Client::new(
+        provider,
+        Some(account.get_private_key()),
+        network.clone()
+    )?;
 
     // Approve tokens
     for (i, token) in tokens_in.iter().enumerate() {

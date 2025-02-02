@@ -1,0 +1,66 @@
+2025-02-02T20:40:19.309341Z ERROR garbage_collector_rust: Execution stopped with error: Token data is null
+
+Location:
+    src/garbage_collector/garbage_collector.rs:176:28
+2025-02-02T20:44:29.250672Z  INFO garbage_collector_rust::modules::menu: Updateing Token Data
+2025-02-02T20:44:29.254879Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Arbitrum
+2025-02-02T20:44:29.467788Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Avalanche
+2025-02-02T20:44:29.623588Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Base
+2025-02-02T20:44:29.806358Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Blast
+2025-02-02T20:44:29.922065Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Bsc
+2025-02-02T20:44:30.169099Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Celo
+2025-02-02T20:44:30.274563Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Core
+2025-02-02T20:44:30.386838Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Ethereum
+2025-02-02T20:44:30.692122Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Fantom
+2025-02-02T20:44:30.823021Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Gnosis
+2025-02-02T20:44:30.935469Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Linea
+2025-02-02T20:44:31.052895Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Manta
+2025-02-02T20:44:31.155648Z ERROR garbage_collector_rust::garbage_collector::garbage_collector: Error updating token data: Token data is null
+
+Location:
+    src/garbage_collector/garbage_collector.rs:185:28
+2025-02-02T20:44:31.155797Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Mantle
+2025-02-02T20:44:31.596650Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Nova
+2025-02-02T20:44:32.107259Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Opbnb
+2025-02-02T20:44:32.618979Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Optimism
+2025-02-02T20:44:32.768286Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Polygon
+2025-02-02T20:44:32.970120Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Scroll
+2025-02-02T20:44:33.064767Z ERROR garbage_collector_rust::garbage_collector::garbage_collector: Error updating token data: error decoding response body
+
+Caused by:
+    expected value at line 1 column 1
+
+Location:
+    src/garbage_collector/garbage_collector.rs:182:23
+2025-02-02T20:44:33.064826Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Taiko
+2025-02-02T20:44:33.157941Z ERROR garbage_collector_rust::garbage_collector::garbage_collector: Error updating token data: error decoding response body
+
+Caused by:
+    expected value at line 1 column 1
+
+Location:
+    src/garbage_collector/garbage_collector.rs:182:23
+2025-02-02T20:44:33.158074Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Updating token data for chain: Zksync
+2025-02-02T20:44:33.254006Z ERROR garbage_collector_rust::garbage_collector::garbage_collector: Error updating token data: error decoding response body
+
+Caused by:
+    expected value at line 1 column 1
+
+Location:
+    src/garbage_collector/garbage_collector.rs:182:23
+2025-02-02T20:44:39.777676Z ERROR garbage_collector_rust::modules::menu: Invalid selection
+2025-02-02T20:47:38.135558Z  INFO garbage_collector_rust::modules::menu: Exiting
+2025-02-02T20:52:08.842465Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Reading non zero balances for address: 0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19
+2025-02-02T20:52:08.845301Z  INFO garbage_collector_rust::garbage_collector::garbage_collector: Reading non zero balances for address: 0xf63feA8d383b8089BAbFf2A712AB3190CB21732D
+2025-02-02T20:52:36.319897Z  INFO garbage_collector_rust::modules::menu: Balance Checker with Addresses
+2025-02-02T20:52:36.327845Z  WARN garbage_collector_rust::garbage_collector::garbage_collector: No token data found for chain: Manta. Fetching token data from Coingecko API
+2025-02-02T20:52:36.343612Z  WARN garbage_collector_rust::garbage_collector::garbage_collector: No token data found for chain: Taiko. Fetching token data from Coingecko API
+2025-02-02T20:52:36.629642Z ERROR garbage_collector_rust::garbage_collector::garbage_collector: Error fetching token data: Token data is null
+
+Location:
+    src/garbage_collector/garbage_collector.rs:185:28
+2025-02-02T20:52:36.641863Z ERROR garbage_collector_rust::garbage_collector::garbage_collector: Error fetching token data: Token data is null
+
+Location:
+    src/garbage_collector/garbage_collector.rs:185:28
+2025-02-02T20:52:45.016599Z  INFO garbage_collector_rust::modules::menu: Exiting

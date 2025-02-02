@@ -1,242 +1,266 @@
 [
-    {
-        "chainId": 1116,
-        "address": "0xc24b642357d7dd1bbe33f3d8aa0101dfa2cf6eb9",
-        "name": "Core Stake Token",
-        "symbol": "CST",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/38937/thumb/CST_TOKEN.png?1719568464"
-    },
-    {
-        "chainId": 1116,
-        "address": "0xb0788b601c0d712702bc829b52771199ad8e33ff",
-        "name": "IceCreamSwap WCORE",
-        "symbol": "WCORE",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/36831/thumb/core.jpeg?1712559362"
-    },
-    {
-        "chainId": 1116,
-        "address": "0x40375c92d9faf44d2f9db9bd9ba41a3317a2404f",
-        "name": "Wrapped CORE",
-        "symbol": "WCORE",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/29276/thumb/wcore.png?1696528228"
-    },
-    {
-        "chainId": 1116,
-        "address": "0xa20b3b97df3a02f9185175760300a06b4e0a2c05",
-        "name": "Staked CORE",
-        "symbol": "SCORE",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/29469/thumb/score.png?1696528414"
-    },
-    {
-        "chainId": 1116,
-        "address": "0xc20e1e271c4b3db0e3f31ece50fcef73438f2783",
-        "name": "OreSwap  Old ",
-        "symbol": "OST",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/36817/thumb/0xC20e1E271c4b3dB0e3F31ece50fCEf73438F2783.png?1712550676"
-    },
-    {
-        "chainId": 1116,
-        "address": "0x1a639e150d2210a4be4a5f0857a9151b241e7ae4",
-        "name": "Archerswap BOW",
-        "symbol": "BOW",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/29458/thumb/bow200x200.png?1696528405"
-    },
-    {
-        "chainId": 1116,
-        "address": "0x496bb259d0117e89b2e73433524e9838c3073e60",
-        "name": "UnityCore",
-        "symbol": "UCORE",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/30086/thumb/IMG_22042023_164828_%28200_x_200_pixel%29.png?1696529010"
-    },
-    {
-        "chainId": 1116,
-        "address": "0xfd843e2eb0e5f7e652fb864477d57510a469b332",
-        "name": "OpenEX Network Token",
-        "symbol": "OEX",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/36770/thumb/oex-r-200.png?1712285533"
-    },
-    {
-        "chainId": 1116,
-        "address": "0xe9aece1ba8bbd429a1ed33349c61280441ac8f99",
-        "name": "Liquify Network",
-        "symbol": "LIQUIFY",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/29401/thumb/full_logo.png?1696528351"
-    },
-    {
-        "chainId": 1116,
-        "address": "0x1483a469ef2c5b7dd2cb1b9174b01545c9a7fb69",
-        "name": "Pumpkin Cat",
-        "symbol": "PUMP",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/37932/thumb/Pumpkin_Cat_200x200.png?1715941040"
-    },
-    {
-        "chainId": 1116,
-        "address": "0x98564e70c7fcc6d947ffe6d9efed5ba68b306f2e",
-        "name": "Ignore Fud",
-        "symbol": "4TOKEN",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/29626/thumb/200x200.png?1696528562"
-    },
-    {
-        "chainId": 1116,
-        "address": "0x900101d06a7426441ae63e9ab3b9b0f63be145f1",
-        "name": "Bridged USDT  Core ",
-        "symbol": "USDT",
-        "decimals": 6,
-        "logoURI": "https://assets.coingecko.com/coins/images/34424/thumb/usdt_logo.png?1704857706"
-    },
-    {
-        "chainId": 1116,
-        "address": "0xa4151b2b3e269645181dccf2d426ce75fcbdeca9",
-        "name": "Bridged USDC  Core ",
-        "symbol": "USDC",
-        "decimals": 6,
-        "logoURI": "https://assets.coingecko.com/coins/images/34423/thumb/usdc.png?1704857726"
-    },
-    {
-        "chainId": 1116,
-        "address": "0x5c44d3d2312aba4d5f2406a98bf374bc76455092",
-        "name": "WOOF",
-        "symbol": "WOOF",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/32430/thumb/200x200_woof_token-01.png?1698121853"
-    },
-    {
-        "chainId": 1116,
-        "address": "0x962d45c91e2e4f29ddc96c626976ece600908ba6",
-        "name": "ArcherSwap Hunter",
-        "symbol": "HUNT",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/29649/thumb/hunt.png?1696528585"
-    },
-    {
-        "chainId": 1116,
-        "address": "0x000000000e1d682cc39abe9b32285fdea1255374",
-        "name": "CORE ID",
-        "symbol": "CID",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/29425/thumb/cid.png?1696528374"
-    },
-    {
-        "chainId": 1116,
-        "address": "0x42020c7962ce072f5048120cedeb36c020062af4",
-        "name": "Crust Exchange",
-        "symbol": "CRUST",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/29537/thumb/photo_2023-03-21_00-12-46.jpg?1696528479"
-    },
-    {
-        "chainId": 1116,
-        "address": "0x74c7b589209ce095a219f8bdf941de117656cbd6",
-        "name": "Oil Token",
-        "symbol": "OIL",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/30214/thumb/oil2.jpeg?1696529125"
-    },
-    {
-        "chainId": 1116,
-        "address": " 0x5c44d3d2312aba4d5f2406a98bf374bc76455092",
-        "name": "Moondogs",
-        "symbol": "WOOF",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/29467/thumb/woof.png?1696528412"
-    },
-    {
-        "chainId": 1116,
-        "address": "0xb4a452e975c006619559e30069804f873475f111",
-        "name": "Call of Memes Yacht Club",
-        "symbol": "COME",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/38042/thumb/COME.jpg?1716337137"
-    },
-    {
-        "chainId": 1116,
-        "address": "0x204e2d49b7cda6d93301bcf667a2da28fb0e5780",
-        "name": "Aquarius Loan",
-        "symbol": "ARS",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/31445/thumb/logo-200x200.png?1696530259"
-    },
-    {
-        "chainId": 1116,
-        "address": "0x42077e348702f13ea80ce6a6a38b8b60fbb37b5d",
-        "name": "cDAO",
-        "symbol": "CDAO",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/33125/thumb/LmgRwWp9_400x400.jpg?1700795014"
-    },
-    {
-        "chainId": 1116,
-        "address": "0xe0d829e913618a7d2e2ba27a5fc8c274a8c525cf",
-        "name": "Gemholic",
-        "symbol": "GEMS",
-        "decimals": 9,
-        "logoURI": "https://assets.coingecko.com/coins/images/29542/thumb/photo_2023-03-16_19-06-39.jpg?1696528483"
-    },
-    {
-        "chainId": 1116,
-        "address": "0xf3cabeb4a292996a451f8094e14f4806d22604d4",
-        "name": "OreSwap",
-        "symbol": "OST",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/37087/thumb/0xF3CABeb4A292996a451f8094E14F4806d22604d4.png?1715046928"
-    },
-    {
-        "chainId": 1116,
-        "address": "0xb555a396446570ac2f4a62fffb64b4b0d43f5b74",
-        "name": "CoreDaoSwap",
-        "symbol": "CDAO",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/29582/thumb/200200wIR5I0em_400x400.jpg?1696528522"
-    },
-    {
-        "chainId": 1116,
-        "address": "0xc5cd3f4029269fe9f2d2d154594d02f13c9a5214",
-        "name": "Core Keeper",
-        "symbol": "COKE",
-        "decimals": 9,
-        "logoURI": "https://assets.coingecko.com/coins/images/37848/thumb/corekeeper-2.png?1715758831"
-    },
-    {
-        "chainId": 1116,
-        "address": "0xf6f46bd1f85ebf00c6d7490678ad020bc73969a7",
-        "name": "PlayZap",
-        "symbol": "PZP",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/24727/thumb/200X200-111.png?1696523890"
-    },
-    {
-        "chainId": 1116,
-        "address": "0xb28b43209d9de61306172af0320f4f55e50e2f29",
-        "name": "ASX Capital",
-        "symbol": "ASX",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/34993/thumb/AXVII_007_500px_Black_Background.png?1706950900"
-    },
-    {
-        "chainId": 1116,
-        "address": "0xcfd38184c30832917a2871695f91e5e61bbd41ff",
-        "name": "Miidas",
-        "symbol": "MIIDAS",
-        "decimals": 6,
-        "logoURI": "https://assets.coingecko.com/coins/images/26286/thumb/logo_miidas_round_500.png?1696525369"
-    },
-    {
-        "chainId": 1116,
-        "address": "0x01065d48363713fa32c6ca51387e0803023c872c",
-        "name": "AGUS",
-        "symbol": "AGUS",
-        "decimals": 18,
-        "logoURI": "https://assets.coingecko.com/coins/images/37094/thumb/0x04513ADaAc27ed0324549E15f52c051e64F81DAB.png?1713271473"
-    }
+  {
+    "address": "0xa20b3b97df3a02f9185175760300a06b4e0a2c05",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/29469/thumb/score.png?1696528414",
+    "name": "Staked CORE",
+    "symbol": "SCORE"
+  },
+  {
+    "address": "0xe04d21d999faedf1e72ade6629e20a11a1ed14fa",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/39944/thumb/wbtc.png?1724885894",
+    "name": "Free Bridged SolvBTC m  Core ",
+    "symbol": "SOLVBTCM"
+  },
+  {
+    "address": "0x962d45c91e2e4f29ddc96c626976ece600908ba6",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/29649/thumb/hunt.png?1696528585",
+    "name": "ArcherSwap Hunter",
+    "symbol": "HUNT"
+  },
+  {
+    "address": "0xa4151b2b3e269645181dccf2d426ce75fcbdeca9",
+    "chainId": 1116,
+    "decimals": 6,
+    "logoURI": "https://assets.coingecko.com/coins/images/34423/thumb/usdc.png?1704857726",
+    "name": "Bridged USDC  Core ",
+    "symbol": "USDC"
+  },
+  {
+    "address": "0xb3a8f0f0da9ffc65318aa39e55079796093029ad",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/39945/thumb/stcore.png?1724886271",
+    "name": "CoreDAO Staked CORE",
+    "symbol": "STCORE"
+  },
+  {
+    "address": "0xf7a0b80681ec935d6dd9f3af9826e68b99897d6d",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/29280/thumb/lfg.png?1696528233",
+    "name": "LFGSwap Finance CORE ",
+    "symbol": "LFG"
+  },
+  {
+    "address": "0x40375c92d9faf44d2f9db9bd9ba41a3317a2404f",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/29276/thumb/wcore.png?1696528228",
+    "name": "Wrapped CORE",
+    "symbol": "WCORE"
+  },
+  {
+    "address": "0x74c7b589209ce095a219f8bdf941de117656cbd6",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/30214/thumb/oil2.jpeg?1696529125",
+    "name": "Oil Token",
+    "symbol": "OIL"
+  },
+  {
+    "address": "0x9410e8052bc661041e5cb27fdf7d9e9e842af2aa",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/50781/thumb/20241016-213746.jpeg?1729143995",
+    "name": "Solv Protocol SolvBTC CORE",
+    "symbol": "SOLVBTCCORE"
+  },
+  {
+    "address": "0x5b1fb849f1f76217246b8aaac053b5c7b15b7dc3",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/40025/thumb/SolvBTC.b.jpg?1725350001",
+    "name": "Free Bridged SolvBTC b  Core ",
+    "symbol": "SOLVBTCB"
+  },
+  {
+    "address": "0xfd843e2eb0e5f7e652fb864477d57510a469b332",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/36770/thumb/oex-r-200.png?1712285533",
+    "name": "OpenEX Network Token",
+    "symbol": "OEX"
+  },
+  {
+    "address": "0xb0788b601c0d712702bc829b52771199ad8e33ff",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/36831/thumb/core.jpeg?1712559362",
+    "name": "IceCreamSwap WCORE",
+    "symbol": "WCORE"
+  },
+  {
+    "address": "0x30a540b05468a250fcc17da2d9d4aaa84b358ea7",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/51445/thumb/CLND_200.png?1731238732",
+    "name": "Colend",
+    "symbol": "CLND"
+  },
+  {
+    "address": "0x000000000e1d682cc39abe9b32285fdea1255374",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/29425/thumb/cid.png?1696528374",
+    "name": "CORE ID",
+    "symbol": "CID"
+  },
+  {
+    "address": "0x204e2d49b7cda6d93301bcf667a2da28fb0e5780",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/31445/thumb/logo-200x200.png?1696530259",
+    "name": "Aquarius Loan",
+    "symbol": "ARS"
+  },
+  {
+    "address": "0x1a639e150d2210a4be4a5f0857a9151b241e7ae4",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/29458/thumb/bow200x200.png?1696528405",
+    "name": "Archerswap BOW",
+    "symbol": "BOW"
+  },
+  {
+    "address": "0xb4a452e975c006619559e30069804f873475f111",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/38042/thumb/COME.jpg?1716337137",
+    "name": "Call of Memes Yacht Club",
+    "symbol": "COME"
+  },
+  {
+    "address": "0xc5cd3f4029269fe9f2d2d154594d02f13c9a5214",
+    "chainId": 1116,
+    "decimals": 9,
+    "logoURI": "https://assets.coingecko.com/coins/images/37848/thumb/corekeeper-2.png?1715758831",
+    "name": "Core Keeper",
+    "symbol": "COKE"
+  },
+  {
+    "address": "0xe0d829e913618a7d2e2ba27a5fc8c274a8c525cf",
+    "chainId": 1116,
+    "decimals": 9,
+    "logoURI": "https://assets.coingecko.com/coins/images/29542/thumb/photo_2023-03-16_19-06-39.jpg?1696528483",
+    "name": "Gemholic",
+    "symbol": "GEMS"
+  },
+  {
+    "address": "0xe9aece1ba8bbd429a1ed33349c61280441ac8f99",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/29401/thumb/full_logo.png?1696528351",
+    "name": "Liquify Network",
+    "symbol": "LIQUIFY"
+  },
+  {
+    "address": " 0x5c44d3d2312aba4d5f2406a98bf374bc76455092",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/29467/thumb/woof.png?1696528412",
+    "name": "Moondogs",
+    "symbol": "WOOF"
+  },
+  {
+    "address": "0x42020c7962ce072f5048120cedeb36c020062af4",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/29537/thumb/photo_2023-03-21_00-12-46.jpg?1696528479",
+    "name": "Crust Exchange",
+    "symbol": "CRUST"
+  },
+  {
+    "address": "0x42077e348702f13ea80ce6a6a38b8b60fbb37b5d",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/33125/thumb/LmgRwWp9_400x400.jpg?1700795014",
+    "name": "cDAO",
+    "symbol": "CDAO"
+  },
+  {
+    "address": "0xf3cabeb4a292996a451f8094e14f4806d22604d4",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/37087/thumb/0xF3CABeb4A292996a451f8094E14F4806d22604d4.png?1715046928",
+    "name": "OreSwap",
+    "symbol": "OST"
+  },
+  {
+    "address": "0xb555a396446570ac2f4a62fffb64b4b0d43f5b74",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/29582/thumb/200200wIR5I0em_400x400.jpg?1696528522",
+    "name": "CoreDaoSwap",
+    "symbol": "CDAO"
+  },
+  {
+    "address": "0x98564e70c7fcc6d947ffe6d9efed5ba68b306f2e",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/29626/thumb/200x200.png?1696528562",
+    "name": "Ignore Fud",
+    "symbol": "4TOKEN"
+  },
+  {
+    "address": "0x900101d06a7426441ae63e9ab3b9b0f63be145f1",
+    "chainId": 1116,
+    "decimals": 6,
+    "logoURI": "https://assets.coingecko.com/coins/images/34424/thumb/usdt_logo.png?1704857706",
+    "name": "Bridged USDT  Core ",
+    "symbol": "USDT"
+  },
+  {
+    "address": "0x70727228db8c7491bf0ad42c180dbf8d95b257e2",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/33363/thumb/abtc_%281%29.png?1701606956",
+    "name": "XLink Bridged BTC",
+    "symbol": "ABTC"
+  },
+  {
+    "address": "0xf6f46bd1f85ebf00c6d7490678ad020bc73969a7",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/24727/thumb/200X200-111.png?1696523890",
+    "name": "PlayZap",
+    "symbol": "PZP"
+  },
+  {
+    "address": "0x8bb97a618211695f5a6a889fac3546d1a573ea77",
+    "chainId": 1116,
+    "decimals": 8,
+    "logoURI": "https://assets.coingecko.com/coins/images/52630/thumb/NBTC-logo.png?1733837414",
+    "name": "NexusBTC",
+    "symbol": "NBTC"
+  },
+  {
+    "address": "0xb28b43209d9de61306172af0320f4f55e50e2f29",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/34993/thumb/AXVII_007_500px_Black_Background.png?1706950900",
+    "name": "ASX Capital",
+    "symbol": "ASX"
+  },
+  {
+    "address": "0xcfd38184c30832917a2871695f91e5e61bbd41ff",
+    "chainId": 1116,
+    "decimals": 6,
+    "logoURI": "https://assets.coingecko.com/coins/images/26286/thumb/logo_miidas_round_500.png?1696525369",
+    "name": "Miidas",
+    "symbol": "MIIDAS"
+  },
+  {
+    "address": "0x01065d48363713fa32c6ca51387e0803023c872c",
+    "chainId": 1116,
+    "decimals": 18,
+    "logoURI": "https://assets.coingecko.com/coins/images/37094/thumb/0x04513ADaAc27ed0324549E15f52c051e64F81DAB.png?1713271473",
+    "name": "AGUS",
+    "symbol": "AGUS"
+  }
 ]

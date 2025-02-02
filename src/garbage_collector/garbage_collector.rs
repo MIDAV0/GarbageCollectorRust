@@ -73,12 +73,12 @@ pub async fn get_non_zero_tokens(target_address: Address, chain_data: Arc<Vec<Ne
                 results.insert(network.chain_name.clone(), balance_list);
             }
         });
+    }
 
-        while let Some(result) = handles.join_next().await {
-            match result {
-                Ok(_) => {}
-                Err(e) => tracing::error!("Failed to fetch balance: {}", e),
-            }
+    while let Some(result) = handles.join_next().await {
+        match result {
+            Ok(_) => {}
+            Err(e) => tracing::error!("Failed to fetch balance: {}", e),
         }
     }
 
@@ -153,7 +153,24 @@ fn output_report(balances: &HashMap<String, Vec<Balance>>) {
         println!("---------------------------------\n");
     }
     println!("Total balance: {}", total_balance);
-} 
+}
+
+pub async fn update_token_data() {
+    let chain_data = match get_networks() {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!("Error getting network data: {:?}", e);
+            return;
+        }
+    };
+    for network in chain_data.iter() {
+        tracing::info!("Updating token data for chain: {}", network.chain_name);
+        match fetch_token_data(&network.chain_name).await {
+            Ok(_) => {}
+            Err(e) => tracing::error!("Error updating token data: {:?}", e),
+        };
+    }
+}
 
 async fn fetch_token_data(chain_name: &String) -> Result<Value> {
     let url = format!(

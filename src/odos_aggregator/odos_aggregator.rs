@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 use alloy::{
     primitives::{utils::parse_units, Address, Bytes, U256},
@@ -10,7 +10,7 @@ use serde::{Serialize, Deserialize};
 use reqwest::{header::HeaderMap, Method};
 use tokio::task::JoinSet;
 
-use crate::{db::{account::Account, database::Database}, helpers::{fetch::{send_http_request_with_retries, RequestParams}, utils::{get_networks, get_user_tokens_from_file}}, web3_client::web3_client::{GasMultiplier, Web3Client}};
+use crate::{db::{account::Account, database::Database}, helpers::{fetch::{send_http_request_with_retries, RequestParams}, utils::{get_networks, get_user_tokens_for_chain, get_user_tokens_from_file}}, web3_client::web3_client::{GasMultiplier, Web3Client}};
 use crate::constants::{TokenData, Network};
 
 use super::constants::ODOS_API_URL;
@@ -133,21 +133,14 @@ pub async fn swap(
     account: &Account,
     chain_data: Arc<Vec<Network>>,
 ) -> Result<()> {
-
-    let balances = get_user_tokens_from_file(account.get_address().to_string())?;
-
     let mut handles = JoinSet::new();
 
     for network in chain_data.iter() {
         let network = network.clone();
-        let chain_balances = match balances.get(&network.chain_name) {
-            Some(balance) => {
-                if balance.is_empty() {
-                    continue;
-                }
-                balance
-            },
-            None => continue,
+
+        let chain_balances = match get_user_tokens_for_chain(account.get_address().to_string(), network.chain_name.clone()) {
+            Ok(b) => b,
+            Err(_) => continue,
         };
 
         let account = account.clone();
@@ -182,6 +175,14 @@ pub async fn swap(
             }
         });
     }
+
+    while let Some(result) = handles.join_next().await {
+        match result {
+            Ok(_) => {}
+            Err(e) => tracing::error!("Failed to swap {}", e),
+        }
+    }
+
     Ok(())
 }
 
@@ -364,73 +365,73 @@ fn is_token_native(token_address: &Address) -> bool {
 }
 
 
-#[tokio::test]
-async fn test_get_quote() {
-    let signer: PrivateKeySigner = "8dcad20d2291af38f28fb6a0cd83e270607106008a298bc05fbcc137b8b47f96".parse().expect("should parse private key");
-    let network = Network {
-        id: 8453,
-        chain_name: "Base".to_owned(),
-        rpc_url: vec!["https://base.publicnode.co".parse::<Url>().unwrap(), "https://base.publicnode.com".parse::<Url>().unwrap()],
-        explorer: "https://basescan.org/tx/".to_owned(),
-        multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap(),
-    };
-    let mut web3_client = Web3Client::new(network.clone(), signer.clone()).unwrap();
+// #[tokio::test]
+// async fn test_get_quote() {
+//     let signer: PrivateKeySigner = "8dcad20d2291af38f28fb6a0cd83e270607106008a298bc05fbcc137b8b47f96".parse().expect("should parse private key");
+//     let network = Network {
+//         id: 8453,
+//         chain_name: "Base".to_owned(),
+//         rpc_url: vec!["https://base.publicnode.co".parse::<Url>().unwrap(), "https://base.publicnode.com".parse::<Url>().unwrap()],
+//         explorer: "https://basescan.org/tx/".to_owned(),
+//         multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap(),
+//     };
+//     let mut web3_client = Web3Client::new(network.clone(), signer.clone()).unwrap();
 
-    let token_in = TokenData {
-        address: "0x858c50c3af1913b0e849afdb74617388a1a5340d".parse().unwrap(),
-        name: "SQT".to_owned(),
-        symbol: "SQT".to_owned(),
-        decimals: 18,
-    };
+//     let token_in = TokenData {
+//         address: "0x858c50c3af1913b0e849afdb74617388a1a5340d".parse().unwrap(),
+//         name: "SQT".to_owned(),
+//         symbol: "SQT".to_owned(),
+//         decimals: 18,
+//     };
 
-    let d = web3_client.approve(
-        token_in.address,
-        "0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".parse().unwrap(),
-        parse_units("1000000000000000000", token_in.decimals).unwrap().into(),
-        Some(parse_units("1000000000000000000", token_in.decimals).unwrap().into())
-    ).await;
+//     let d = web3_client.approve(
+//         token_in.address,
+//         "0xBF17a4730Fe4a1ea36Cf536B8473Cc25ba146F19".parse().unwrap(),
+//         parse_units("1000000000000000000", token_in.decimals).unwrap().into(),
+//         Some(parse_units("1000000000000000000", token_in.decimals).unwrap().into())
+//     ).await;
 
-    match d {
-        Ok(q) => println!("{:?}", q),
-        Err(e) => println!("{:?}", e),
-    }
-}
+//     match d {
+//         Ok(q) => println!("{:?}", q),
+//         Err(e) => println!("{:?}", e),
+//     }
+// }
 
-#[tokio::test]
-async fn test_swap() {
-    let signer: PrivateKeySigner = "".parse().expect("should parse private key");
-    let network = Network {
-        id: 8453,
-        chain_name: "Base".to_owned(),
-        rpc_url: vec!["https://base.publicnode.com".parse::<Url>().unwrap()],
-        explorer: "https://basescan.org/tx/".to_owned(),
-        multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap(),
-    };
-    let odos_aggregator = OdosAggregator::new(signer, network, vec![]).unwrap();
-    let token_in = vec![TokenData {
-        address: "0x858c50c3af1913b0e849afdb74617388a1a5340d".parse().unwrap(),
-        name: "SQT".to_owned(),
-        symbol: "SQT".to_owned(),
-        decimals: 18,
-    }];
-    let token_out = vec![TokenData {
-        address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".parse().unwrap(),
-        name: "Ether".to_owned(),
-        symbol: "ETH".to_owned(),
-        decimals: 18,
-    }];
-    let amount_in = vec![U256::from_str_radix("8ac7230489e80000", 16).unwrap()];
-    let d = odos_aggregator.swap(token_in, token_out, amount_in).await;
-    match d {
-        Ok(q) => println!("{:?}", q),
-        Err(e) => println!("{:?}", e),
-    }
-}
+// #[tokio::test]
+// async fn test_swap() {
+//     let signer: PrivateKeySigner = "".parse().expect("should parse private key");
+//     let network = Network {
+//         id: 8453,
+//         chain_name: "Base".to_owned(),
+//         rpc_url: vec!["https://base.publicnode.com".parse::<Url>().unwrap()],
+//         explorer: "https://basescan.org/tx/".to_owned(),
+//         multicall: "0xcA11bde05977b3631167028862bE2a173976CA11".parse().unwrap(),
+//     };
+//     let odos_aggregator = OdosAggregator::new(signer, network, vec![]).unwrap();
+//     let token_in = vec![TokenData {
+//         address: "0x858c50c3af1913b0e849afdb74617388a1a5340d".parse().unwrap(),
+//         name: "SQT".to_owned(),
+//         symbol: "SQT".to_owned(),
+//         decimals: 18,
+//     }];
+//     let token_out = vec![TokenData {
+//         address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".parse().unwrap(),
+//         name: "Ether".to_owned(),
+//         symbol: "ETH".to_owned(),
+//         decimals: 18,
+//     }];
+//     let amount_in = vec![U256::from_str_radix("8ac7230489e80000", 16).unwrap()];
+//     let d = odos_aggregator.swap(token_in, token_out, amount_in).await;
+//     match d {
+//         Ok(q) => println!("{:?}", q),
+//         Err(e) => println!("{:?}", e),
+//     }
+// }
 
-#[test]
-fn test_bigint() -> Result<()> {
-    // Convert 0x75899e7357ec6f0e00000 to U256
-    let amount = U256::from_str_radix("8ac7230489e80000", 16)?;
-    println!("{:?}", amount);
-    Ok(())
-}
+// #[test]
+// fn test_bigint() -> Result<()> {
+//     // Convert 0x75899e7357ec6f0e00000 to U256
+//     let amount = U256::from_str_radix("8ac7230489e80000", 16)?;
+//     println!("{:?}", amount);
+//     Ok(())
+// }

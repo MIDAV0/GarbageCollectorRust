@@ -2,7 +2,7 @@ use log::LevelFilter;
 use fern::{Dispatch, colors::{Color, ColoredLevelConfig}};
 use eyre::Result;
 use serde_json::{to_string_pretty, Value};
-use std::{collections::HashMap, fs, future::Future, io::Write, time};
+use std::{collections::HashMap, fs, future::Future, io::Write, ops::Deref, time};
 use alloy::{
     contract::Error as ContractError, network::{Ethereum, EthereumWallet}, primitives::Address, providers::{
         fillers::{FillProvider, JoinFill, RecommendedFiller, WalletFiller}, ProviderBuilder, RootProvider
@@ -98,6 +98,14 @@ pub fn get_user_tokens_from_file(target_address: String) -> Result<HashMap<Strin
         Err(_) => return Err(eyre::eyre!("Failed to read user tokens file"))
     };
     Ok(serde_json::from_str(&contents)?)
+}
+
+pub fn get_user_tokens_for_chain(target_address: String, chain_name: String) -> Result<Vec<Balance>> {
+    let mut user_tokens = get_user_tokens_from_file(target_address)?;
+    match user_tokens.remove(&chain_name) {
+        Some(tokens) => Ok(tokens),
+        None => return Err(eyre::eyre!("No tokens found for user on chain"))
+    }
 }
 
 pub trait RetryableError {
